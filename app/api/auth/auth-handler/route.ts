@@ -7,4 +7,4 @@ export const fetchCache = 'force-no-store'
 const handler = handleAuth()
 
 export const GET = handler
-export const POST = handler 
+export const POST = handler

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Dumbbell, ArrowRight, Loader2, Play, CheckCircle, Share2, Save, BarChart2, Heart, Send } from "lucide-react"
+import { Dumbbell, ArrowRight, Loader2, Play, CheckCircle, Share2, Save, BarChart2, Heart, Send, ChevronLeft } from "lucide-react"
 import WorkoutSession from '../components/WorkoutSession'
 import Image from 'next/image'
 import { useUser } from '@auth0/nextjs-auth0/client'
@@ -320,6 +320,12 @@ export default function DailyWorkout() {
     }
   }
 
+  // Add back navigation handler
+  const handleBack = (previousStep: 'goal' | 'equipment' | 'preferences') => {
+    setStep(previousStep)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   if (isWorkoutStarted && workout) {
     return (
       <WorkoutSession 
@@ -469,6 +475,13 @@ export default function DailyWorkout() {
 
       {step === 'equipment' && (
         <div>
+          <button 
+            onClick={() => handleBack('goal')}
+            className="flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5 mr-1" />
+            Back to Goals
+          </button>
           <h2 className="text-xl font-medium mb-6">What equipment do you have?</h2>
           <div className="space-y-4 mb-6">
             {equipmentCategories.map((category) => (
@@ -479,7 +492,7 @@ export default function DailyWorkout() {
                       ? prev.filter(id => id !== category.id)
                       : [...prev, category.id]
                   )}
-                  className="w-full p-4 flex justify-between items-center hover:bg-gray-900/50 transition-colors"
+                  className="w-full p-4 flex justify-between items-center hover:bg-white/20 transition-colors"
                 >
                   <span className="text-lg">{category.label}</span>
                   <span className="transform transition-transform duration-200">
@@ -499,7 +512,7 @@ export default function DailyWorkout() {
                               : [...prev, item.id as Equipment]
                           )
                         }}
-                        className={`w-full flex items-center justify-between p-4 hover:bg-gray-900/50 transition-colors ${
+                        className={`w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors ${
                           selectedEquipment.includes(item.id as Equipment)
                             ? 'bg-blue-500/10 text-blue-500'
                             : ''
@@ -528,6 +541,13 @@ export default function DailyWorkout() {
 
       {step === 'preferences' && (
         <div>
+          <button 
+            onClick={() => handleBack('equipment')}
+            className="flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5 mr-1" />
+            Back to Equipment
+          </button>
           <h2 className="text-xl font-medium mb-6">Customize your workout</h2>
           
           <div className="mb-6">
@@ -554,7 +574,7 @@ export default function DailyWorkout() {
             <div className="space-y-4">
               {muscleGroups.map((group) => (
                 <div key={group.category} className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="bg-gray-900/50 px-4 py-2 border-b border-gray-200">
+                  <div className="bg-blue-500/10 px-4 py-2 border-b border-gray-200">
                     <h4 className="font-medium">{group.category}</h4>
                   </div>
                   <div className="grid grid-cols-2 gap-2 p-2">
@@ -602,6 +622,13 @@ export default function DailyWorkout() {
 
       {step === 'workout' && workout && (
         <div>
+          <button 
+            onClick={() => handleBack('preferences')}
+            className="flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5 mr-1" />
+            Back to Preferences
+          </button>
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-medium">Your Workout</h2>

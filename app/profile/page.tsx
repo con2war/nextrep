@@ -212,15 +212,67 @@ export default function Profile() {
 
   if (!user) {
     return (
-      <div className="min-h-screen max-w-2xl mx-auto px-4 py-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Not Logged In</h1>
-          <a
-            href="/api/auth/login"
-            className="inline-block bg-blue-500 text-white font-medium px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Log In
-          </a>
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+        <div className="max-w-2xl mx-auto px-4 py-16">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              Track Your Fitness Journey
+            </h1>
+            <p className="text-xl text-gray-600">
+              Sign in to unlock personalized features
+            </p>
+          </div>
+
+          <div className="grid gap-8 md:grid-cols-2 mb-12">
+            <div className="p-6 bg-white rounded-xl border border-blue-100 shadow-sm">
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
+                <Heart className="w-6 h-6 text-blue-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Save Favorites</h3>
+              <p className="text-gray-600">
+                Keep track of your preferred workouts and access them anytime
+              </p>
+            </div>
+
+            <div className="p-6 bg-white rounded-xl border border-blue-100 shadow-sm">
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
+                <Calendar className="w-6 h-6 text-blue-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Track Progress</h3>
+              <p className="text-gray-600">
+                Monitor your workout history and fitness achievements
+              </p>
+            </div>
+
+            <div className="p-6 bg-white rounded-xl border border-blue-100 shadow-sm">
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
+                <Star className="w-6 h-6 text-blue-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Personalization</h3>
+              <p className="text-gray-600">
+                Get workouts tailored to your preferences and goals
+              </p>
+            </div>
+
+            <div className="p-6 bg-white rounded-xl border border-blue-100 shadow-sm">
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
+                <Play className="w-6 h-6 text-blue-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Resume Progress</h3>
+              <p className="text-gray-600">
+                Pick up where you left off with saved workout sessions
+              </p>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <a
+              href="/api/auth/login"
+              className="inline-flex items-center justify-center gap-2 bg-blue-500 text-white font-medium px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Get Started
+            </a>
+          </div>
         </div>
       </div>
     )

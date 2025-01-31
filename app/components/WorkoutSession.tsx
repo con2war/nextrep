@@ -121,7 +121,7 @@ export default function WorkoutSession({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-20">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-28">
       {/* Timer Section */}
       <div className="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-blue-100 shadow-sm p-4 mb-6">
         <div className="max-w-2xl mx-auto flex justify-between items-center">
@@ -274,18 +274,20 @@ export default function WorkoutSession({
         ))}
 
         {/* End Workout Button */}
-        <button
-          onClick={() => {
-            const summary = {
-              duration: formatTime(timer),
-              exercises
-            }
-            onComplete(summary)
-          }}
-          className="fixed bottom-8 left-4 right-4 max-w-2xl mx-auto bg-rose-500 text-white font-medium p-4 rounded-xl hover:bg-rose-600 transition-all shadow-lg"
-        >
-          End Workout
-        </button>
+        <div className="fixed bottom-8 left-0 right-0 px-4 z-10">
+          <button
+            onClick={() => {
+              const summary = {
+                duration: formatTime(timer),
+                exercises
+              }
+              onComplete(summary)
+            }}
+            className="w-full max-w-2xl mx-auto bg-rose-500 text-white font-medium p-4 rounded-xl hover:bg-rose-600 transition-all shadow-lg block"
+          >
+            End Workout
+          </button>
+        </div>
       </div>
     </div>
   )

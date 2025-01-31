@@ -6,15 +6,16 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 })
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const { goal, equipment, timeLimit, muscleGroup } = await request.json();
+    const { goal, duration, equipment } = await req.json()
+    console.log('Received request:', { goal, duration, equipment }) // Debug log
 
     // Define conditioning-focused goals that require specific formats
     const conditioningGoals = ['conditioning', 'endurance', 'functional', 'athletic', 'fat_loss'];
     const isConditioningWorkout = conditioningGoals.includes(goal);
     
-    console.log('Starting workout generation with:', { goal, equipment, muscleGroup, timeLimit });
+    console.log('Starting workout generation with:', { goal, equipment, duration });
     
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
@@ -30,8 +31,7 @@ export async function POST(request: Request) {
     ### **User Inputs:**
     - **Goal:** ${goal}  
     - **Equipment Available:** ${equipment.length > 0 ? equipment.join(', ') : "Bodyweight Only"}  
-    - **Target Muscle Group:** ${muscleGroup.label}  
-    - **Time Limit:** ${timeLimit} minutes  
+    - **Time Limit:** ${duration} minutes  
     
     ### **Workout Structure:**
     #### **1️⃣ Warm-up (5-10% of Total Time)**
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     ---
     
     ### **Workout Constraints & Rules:**
-    ✅ **Total workout time ≤ ${timeLimit} minutes** (structured into warmup, main workout, cooldown).  
+    ✅ **Total workout time ≤ ${duration} minutes** (structured into warmup, main workout, cooldown).  
     ✅ **Ensure proper movement selection based on available equipment.**  
     ✅ **Prioritize compound movements first, followed by isolation exercises.**  
     ✅ **Match difficulty level & rest times to the user's goal.**  
@@ -133,14 +133,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(workoutData)
   } catch (error: any) {
-    console.error('Workout generation error:', {
-      message: error.message,
-      stack: error.stack,
-      details: error.response?.data
-    })
-    
+    console.error('API error:', error) // Debug log
     return NextResponse.json(
-      { error: error.message || 'Failed to generate workout. Please try again.' },
+      { error: 'Failed to generate workout' },
       { status: 500 }
     )
   }

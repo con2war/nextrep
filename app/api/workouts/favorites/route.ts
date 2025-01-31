@@ -1,4 +1,4 @@
-import { getSession } from '@auth0/nextjs-auth0/edge'
+import { getSession } from '@auth0/nextjs-auth0'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -24,14 +24,14 @@ interface FavoriteWithWorkout {
   createdAt: Date;
 }
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getSession()
     if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Log the user ID for debugging
@@ -91,6 +91,9 @@ export async function GET() {
     return NextResponse.json(workouts)
   } catch (error) {
     console.error('Error fetching favorites:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to fetch favorites' },
+      { status: 500 }
+    )
   }
 } 
