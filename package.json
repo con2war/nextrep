@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "predeploy": "mv app/api/auth/auth-handler app/api/auth/[...auth0]",
+    "postdeploy": "mv app/api/auth/[...auth0] app/api/auth/auth-handler",
+    "vercel-build": "npm run predeploy && next build && npm run postdeploy"
+
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^3.5.0",
