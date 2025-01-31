@@ -7,6 +7,10 @@ export const config = {
     '/daily-workout',
     '/custom-workout',
     '/profile',
-    '/stats'
+    '/stats',
+    '/api/user/:path*',
+    '/api/workouts/:path*',
+    '/api/generate-workout',
+    '/((?!api/auth/auth|_next/static|_next/image|favicon.ico).*)'
   ]
 } 
