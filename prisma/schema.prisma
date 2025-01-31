@@ -1,0 +1,63 @@
+// This is your Prisma schema file
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL") // Uses connection pooling
+  directUrl = env("POSTGRES_URL_NON_POOLING") // Uses a direct connection
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Define the models
+model User {
+  id              String    @id // Auth0 user ID
+  email           String    @unique
+  name            String?
+  workouts        Workout[]
+  favoriteWorkouts FavoriteWorkout[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Workout {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  date          DateTime  @default(now())
+  duration      String
+  type          String    // e.g., "strength", "cardio", "hiit"
+  exercises     Json      // Stores the workout structure
+  targetMuscles String[]
+  difficulty    String
+  favorites     FavoriteWorkout[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model FavoriteWorkout {
+  id        String   @id @default(cuid())
+  userId    String
+  workoutId String
+  user      User     @relation(fields: [userId], references: [id])
+  workout   Workout  @relation(fields: [workoutId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, workoutId])
+  @@index([userId])
+}
+
+model CompletedWorkout {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String
+  duration    String?
+  rating      Int?
+  completedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
