@@ -1,6 +1,12 @@
 import { getSession } from '@auth0/nextjs-auth0'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { PrismaClient } from '@prisma/client'
+
+// Initialize Prisma Client
+const prisma = new PrismaClient()
+
+// Add this export to mark the route as dynamic
+export const dynamic = 'force-dynamic'
 
 interface CompletedWorkout {
   id: string;
@@ -141,6 +147,8 @@ export async function GET() {
         'Content-Type': 'application/json',
       }
     })
+  } finally {
+    await prisma.$disconnect()
   }
 }
 
