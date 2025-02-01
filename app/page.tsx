@@ -77,19 +77,16 @@ export default function Home() {
             <span className="text-gray-400 group-hover:text-blue-500 transition-colors">→</span>
           </Link>
 
-          <Link
-            href="/discover"
-            className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/5 transition-all group"
-          >
+          <div className="flex items-center justify-between p-4 rounded-lg border border-gray-200 bg-gray-50 cursor-not-allowed opacity-60">
             <div className="flex items-center gap-4">
-              <Search className="w-6 h-6 text-blue-500" />
+              <Search className="w-6 h-6 text-gray-400" />
               <div>
                 <h2 className="text-lg font-medium mb-1">Discover</h2>
-                <p className="text-sm text-gray-400">Browse community workouts</p>
+                <p className="text-sm text-gray-400">Coming soon</p>
               </div>
             </div>
-            <span className="text-gray-400 group-hover:text-blue-500 transition-colors">→</span>
-          </Link>
+            <span className="text-gray-400">→</span>
+          </div>
         </div>
 
         {/* Stats Section */}
@@ -170,4 +167,5 @@ export default function Home() {
     </div>
   )
 }
+
 

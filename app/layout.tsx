@@ -7,8 +7,8 @@ import BottomNav from "./components/BottomNav";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "FitQuest",
-  description: "Your personal fitness journey",
+  title: "NextRep A.I.",
+  description: "Your A.I. workout partner",
 };
 
 export default function RootLayout({
