@@ -11,7 +11,6 @@
     "predeploy": "mv app/api/auth/auth-handler app/api/auth/[...auth0]",
     "postdeploy": "mv app/api/auth/[...auth0] app/api/auth/auth-handler",
     "vercel-build": "npm run predeploy && next build && npm run postdeploy"
-
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^3.5.0",
@@ -19,6 +18,9 @@
     "@vercel/postgres": "^0.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "csv-parse": "^5.6.0",
+    "csv-parser": "^3.2.0",
+    "date-fns": "^4.1.0",
     "lucide-react": "^0.474.0",
     "next": "14.2.16",
     "ollama": "^0.5.12",
