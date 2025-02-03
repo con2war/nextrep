@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, Play, Trash2, Save, ChevronLeft, Timer, Clock } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 interface Exercise {
   id: string
@@ -23,7 +24,17 @@ interface TabataWorkout {
   exercises: Exercise[]
 }
 
+interface GymExercise {
+    name: string
+    type: string
+    equipment: string
+    difficulty: string
+    muscle: string
+    description: string
+}
+
 export default function TabataWorkout() {
+  const router = useRouter()
   const [workout, setWorkout] = useState<TabataWorkout>({
     name: "",
     rounds: 8,
@@ -31,6 +42,38 @@ export default function TabataWorkout() {
     restInterval: 10,
     exercises: []
   })
+
+  const [exercises, setExercises] = useState<GymExercise[]>([])
+  const [currentExercise, setCurrentExercise] = useState("")
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [suggestions, setSuggestions] = useState<GymExercise[]>([])
+
+  // Fetch exercises from API
+  useEffect(() => {
+    fetch('/api/exercises')
+      .then(res => res.json())
+      .then(data => setExercises(data))
+      .catch(error => console.error('Error fetching exercises:', error))
+  }, [])
+
+  // Handle exercise input and suggestions
+  const handleExerciseInput = (value: string, exerciseId: string) => {
+    setCurrentExercise(value)
+    updateExercise(exerciseId, { name: value })
+    
+    if (value.length >= 2) {
+      const filtered = exercises
+        .filter(ex => 
+          ex.name.toLowerCase().includes(value.toLowerCase()) ||
+          ex.muscle.toLowerCase().includes(value.toLowerCase())
+        )
+        .slice(0, 3)
+      setSuggestions(filtered)
+      setShowSuggestions(filtered.length > 0)
+    } else {
+      setShowSuggestions(false)
+    }
+  }
 
   // Update rounds with better handling
   const updateRounds = (value: string) => {
@@ -89,6 +132,12 @@ export default function TabataWorkout() {
       ...workout,
       exercises: workout.exercises.filter(exercise => exercise.id !== exerciseId)
     })
+  }
+
+  const startWorkout = () => {
+    // Store the workout in localStorage before navigating
+    localStorage.setItem('currentTabataWorkout', JSON.stringify(workout))
+    router.push('/custom-workout/tabata/session')
   }
 
   return (
@@ -190,16 +239,46 @@ export default function TabataWorkout() {
             </span>
           </div>
           {workout.exercises.map((exercise, index) => (
-            <div key={exercise.id} className="bg-white/30 p-4 rounded-lg space-y-3">
+            <div key={exercise.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="flex items-center gap-4">
                 <span className="text-gray-500 font-medium">#{index + 1}</span>
-                <input
-                  type="text"
-                  placeholder="Exercise name"
-                  value={exercise.name}
-                  onChange={(e) => updateExercise(exercise.id, { name: e.target.value })}
-                  className="flex-grow p-2 rounded border border-gray-200"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Exercise name"
+                    value={exercise.name}
+                    onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 mb-3"
+                  />
+                  
+                  {/* Suggestions Dropdown */}
+                  {showSuggestions && exercise.name === currentExercise && (
+                    <div className="absolute z-10 left-0 right-0 mt-1 bg-white rounded-lg border border-gray-200 shadow-lg">
+                      {suggestions.map((suggestion, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            updateExercise(exercise.id, { name: suggestion.name })
+                            setCurrentExercise(suggestion.name)
+                            setShowSuggestions(false)
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
+                        >
+                          <div className="font-medium">{suggestion.name}</div>
+                          <div className="text-sm text-gray-500 flex items-center gap-2">
+                            <span>{suggestion.muscle}</span>
+                            {suggestion.difficulty && (
+                              <>
+                                <span>•</span>
+                                <span>{suggestion.difficulty}</span>
+                              </>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => removeExercise(exercise.id)}
                   className="text-red-500 hover:text-red-600"
@@ -293,19 +372,22 @@ export default function TabataWorkout() {
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4">
-          <button className="flex items-center justify-center gap-2 p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/5 transition-all">
-            <Save className="w-5 h-5" />
-            Save Workout
-          </button>
-          <button 
-            className="flex items-center justify-center gap-2 p-4 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={workout.exercises.length === 0}
-          >
-            <Play className="w-5 h-5" />
-            Start Workout
-          </button>
+        {/* Fixed Bottom Action Bar */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-200 p-4 z-50">
+            <div className="container max-w-md mx-auto grid grid-cols-2 gap-3">
+                <button className="px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 text-gray-600 hover:text-blue-600">
+                    <Save className="w-4 h-4" />
+                    Save
+                </button>
+                <button
+                    onClick={startWorkout}
+                    disabled={workout.exercises.length === 0}
+                    className="px-4 py-3 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <Play className="w-4 h-4" />
+                    Start
+                </button>
+            </div>
         </div>
       </main>
     </div>

@@ -79,52 +79,62 @@ export default function DailyWorkout() {
   const goals = [
     { 
       id: 'strength', 
-      label: 'Strength Training', 
+      label: 'Strength Training',
+      icon: '💪',
       description: "Focus on heavy compound lifts, low reps, and longer rest times to increase raw strength." 
     },
     { 
       id: 'hypertrophy', 
-      label: 'Muscle Growth (Hypertrophy)', 
+      label: 'Muscle Growth (Hypertrophy)',
+      icon: '🏋️‍♂️',
       description: "Optimized for muscle size, using moderate reps (8-12), controlled tempo, and progressive overload." 
     },
     { 
       id: 'powerlifting', 
-      label: 'Powerlifting', 
+      label: 'Powerlifting',
+      icon: '🏋️',
       description: "Train for maximum lifts in squat, bench press, and deadlift with heavy loads and low reps (1-5)." 
     },
     { 
       id: 'yoga', 
-      label: 'Yoga & Flexibility', 
+      label: 'Yoga & Flexibility',
+      icon: '🧘‍♂️',
       description: "Focus on mobility, flexibility, and relaxation through dynamic and static stretching." 
     },
     { 
       id: 'conditioning', 
-      label: 'Conditioning & Agility', 
+      label: 'Conditioning & Agility',
+      icon: '⚡',
       description: "Improve cardiovascular fitness, speed, and agility with high-intensity movements and circuits." 
     },
     { 
       id: 'endurance', 
-      label: 'Muscular & Cardiovascular Endurance', 
+      label: 'Muscular & Cardiovascular Endurance',
+      icon: '🏃‍♂️',
       description: "Train with higher reps (12-20), short rest times, and aerobic conditioning for long-term stamina." 
     },
     { 
       id: 'fat_loss', 
-      label: 'Fat Loss & Metabolic Training', 
+      label: 'Fat Loss & Metabolic Training',
+      icon: '🔥',
       description: "Utilizes high-intensity interval training (HIIT), supersets, and circuits to maximize calorie burn and metabolism." 
     },
     { 
       id: 'mobility', 
-      label: 'Mobility & Injury Prevention', 
+      label: 'Mobility & Injury Prevention',
+      icon: '🤸‍♂️',
       description: "Focus on joint health, mobility drills, and dynamic stretching to improve movement quality." 
     },
     { 
       id: 'functional', 
-      label: 'Functional Fitness', 
+      label: 'Functional Fitness',
+      icon: '⚡',
       description: "Train for real-world movements using kettlebells, bodyweight exercises, and multi-joint movements." 
     },
     { 
       id: 'athletic', 
-      label: 'Sports Performance', 
+      label: 'Sports Performance',
+      icon: '🏆',
       description: "Enhance speed, agility, strength, and power for sport-specific training." 
     }
   ];
@@ -451,7 +461,8 @@ export default function DailyWorkout() {
                       : 'border-gray-200 hover:border-blue-500'
                   }`}
                 >
-                  <div className="mb-2">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-2xl">{goal.icon}</span>
                     <span className="font-medium">{goal.label}</span>
                   </div>
                   <p className={`text-sm text-gray-400 transition-all ${
@@ -622,13 +633,6 @@ export default function DailyWorkout() {
 
       {step === 'workout' && workout && (
         <div>
-          <button 
-            onClick={() => handleBack('preferences')}
-            className="flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5 mr-1" />
-            Back to Preferences
-          </button>
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-medium">Your Workout</h2>

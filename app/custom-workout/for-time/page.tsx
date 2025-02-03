@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { Plus, Play, Trash2, Save, ChevronLeft, Timer } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { Plus, Play, Trash2, Save, ChevronLeft, Timer, X, Info } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import type { GymExercise } from "@/app/utils/exercises-loader"
 
 interface Exercise {
   id: string
@@ -13,6 +15,9 @@ interface Exercise {
   calories?: number
   notes?: string
   metric: 'reps' | 'distance' | 'calories'
+  difficulty?: string
+  equipment?: string
+  muscle?: string
 }
 
 interface ForTimeWorkout {
@@ -22,22 +27,87 @@ interface ForTimeWorkout {
 }
 
 export default function ForTimeWorkout() {
+  const router = useRouter()
   const [workout, setWorkout] = useState<ForTimeWorkout>({
     name: "",
     rounds: 1,
     exercises: []
   })
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [suggestions, setSuggestions] = useState<GymExercise[]>([])
+  const [currentExercise, setCurrentExercise] = useState("")
+  const [exercises, setExercises] = useState<GymExercise[]>([])
+  const [selectedExercise, setSelectedExercise] = useState<GymExercise | null>(null)
+  const suggestionRef = useRef<HTMLDivElement>(null)
 
-  const addExercise = () => {
-    setWorkout({
-      ...workout,
-      exercises: [...workout.exercises, {
-        id: Date.now().toString(),
-        name: '',
-        reps: 10,
-        metric: 'reps'
-      }]
-    })
+  // Load exercises on mount
+  useEffect(() => {
+    fetch('/api/exercises')
+      .then(res => res.json())
+      .then(data => setExercises(data))
+      .catch(error => console.error('Error loading exercises:', error))
+  }, [])
+
+  // Handle clicks outside suggestions
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const handleExerciseInput = (value: string) => {
+    setCurrentExercise(value)
+    
+    if (value.length >= 2) {
+      const filtered = exercises
+        .filter(ex => 
+          ex.name.toLowerCase().includes(value.toLowerCase()) ||
+          ex.muscle.toLowerCase().includes(value.toLowerCase())
+        )
+        .slice(0, 3) // Limit to 3 suggestions
+      setSuggestions(filtered)
+      setShowSuggestions(filtered.length > 0)
+    } else {
+      setShowSuggestions(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && currentExercise) {
+      if (suggestions.length > 0) {
+        addExercise(suggestions[0]) // Add first suggestion
+      } else {
+        addExercise() // Add custom exercise
+      }
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false)
+    }
+  }
+
+  const addExercise = (exercise?: GymExercise) => {
+    if (exercise || currentExercise.trim()) {
+      setWorkout(prev => ({
+        ...prev,
+        exercises: [
+          ...prev.exercises,
+          {
+            id: Date.now().toString(),
+            name: exercise ? exercise.name : currentExercise.trim(),
+            metric: 'reps',
+            difficulty: exercise?.difficulty,
+            equipment: exercise?.equipment,
+            muscle: exercise?.muscle
+          }
+        ]
+      }))
+      setCurrentExercise("")
+      setSelectedExercise(null)
+      setShowSuggestions(false)
+    }
   }
 
   const updateExercise = (exerciseId: string, updates: Partial<Exercise>) => {
@@ -62,6 +132,12 @@ export default function ForTimeWorkout() {
       ...workout, 
       rounds: parsedValue === '' ? '' as unknown as number : Math.max(1, parsedValue || 1)
     })
+  }
+
+  const startWorkout = () => {
+    if (workout.exercises.length === 0) return
+    localStorage.setItem('currentForTimeWorkout', JSON.stringify(workout))
+    router.push('/custom-workout/for-time/session')
   }
 
   return (
@@ -112,86 +188,165 @@ export default function ForTimeWorkout() {
           </div>
         </div>
 
-        {/* Updated Exercises Section */}
-        <div className="space-y-4 mb-8">
-          <h2 className="text-lg font-medium">Exercises</h2>
+        {/* Exercise Input with Enhanced Autocomplete */}
+        <div className="relative mb-6">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={currentExercise}
+              onChange={(e) => handleExerciseInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search exercises..."
+              className="flex-1 p-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              autoComplete="off"
+            />
+            <button
+              onClick={() => addExercise()}
+              className="p-3 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all"
+            >
+              <Plus className="w-6 h-6 text-gray-600" />
+            </button>
+          </div>
+
+          {/* Enhanced Suggestions Dropdown */}
+          {showSuggestions && (
+            <div 
+              ref={suggestionRef}
+              className="absolute z-10 left-0 right-0 mt-1 bg-white rounded-lg border border-gray-200 shadow-lg max-h-80 overflow-y-auto"
+            >
+              {suggestions.map((exercise, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    addExercise(exercise)
+                  }}
+                  className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
+                >
+                  <div className="font-medium">{exercise.name}</div>
+                  <div className="text-sm text-gray-500 flex items-center gap-2">
+                    <span>{exercise.muscle}</span>
+                    {exercise.difficulty && (
+                      <>
+                        <span>•</span>
+                        <span>{exercise.difficulty}</span>
+                      </>
+                    )}
+                    {exercise.equipment && (
+                      <>
+                        <span>•</span>
+                        <span>{exercise.equipment}</span>
+                      </>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Exercise List with Details */}
+        <div className="space-y-2">
           {workout.exercises.map((exercise, index) => (
-            <div key={exercise.id} className="bg-white/30 p-4 rounded-lg space-y-3">
-              <div className="flex items-center gap-4">
-                <span className="text-gray-500 font-medium">#{index + 1}</span>
-                <input
-                  type="text"
-                  placeholder="Exercise name"
-                  value={exercise.name}
-                  onChange={(e) => updateExercise(exercise.id, { name: e.target.value })}
-                  className="flex-grow p-2 rounded border border-gray-200"
-                />
+            <div
+              key={exercise.id}
+              className="bg-white p-4 rounded-xl border border-gray-200 space-y-3"
+            >
+              {/* Exercise Header */}
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{exercise.name}</span>
                 <button
                   onClick={() => removeExercise(exercise.id)}
-                  className="text-red-500 hover:text-red-600"
+                  className="text-gray-400 hover:text-red-500 transition-colors"
                 >
-                  <Trash2 className="w-5 h-5" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-4 mb-3">
+
+              {/* Exercise Details */}
+              {exercise.muscle && (
+                <div className="text-sm text-gray-500 flex items-center gap-2">
+                  <span>{exercise.muscle}</span>
+                  {exercise.difficulty && (
+                    <>
+                      <span>•</span>
+                      <span>{exercise.difficulty}</span>
+                    </>
+                  )}
+                  {exercise.equipment && (
+                    <>
+                      <span>•</span>
+                      <span>{exercise.equipment}</span>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Metric Selection and Input */}
+              <div className="flex gap-4 items-center">
                 <select
                   value={exercise.metric}
                   onChange={(e) => updateExercise(exercise.id, { 
-                    metric: e.target.value as 'reps' | 'distance' | 'calories',
-                    reps: undefined,
-                    distance: undefined,
-                    calories: undefined
+                    metric: e.target.value as 'reps' | 'distance' | 'calories' 
                   })}
-                  className="p-2 rounded border border-gray-200"
+                  className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
                 >
                   <option value="reps">Reps</option>
-                  <option value="distance">Distance (m)</option>
+                  <option value="distance">Distance</option>
                   <option value="calories">Calories</option>
                 </select>
+
+                <div className="flex-1">
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder={`Enter ${exercise.metric}`}
+                    value={
+                      exercise.metric === 'reps' ? exercise.reps || '' :
+                      exercise.metric === 'distance' ? exercise.distance || '' :
+                      exercise.calories || ''
+                    }
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 0
+                      const updates = {
+                        reps: undefined,
+                        distance: undefined,
+                        calories: undefined,
+                        [exercise.metric]: value
+                      }
+                      updateExercise(exercise.id, updates)
+                    }}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Weight Input */}
+              <div className="relative">
                 <input
                   type="number"
                   min="0"
-                  placeholder={exercise.metric === 'reps' ? 'Number of reps' : 
-                             exercise.metric === 'distance' ? 'Distance in meters' : 
-                             'Calories to burn'}
-                  value={exercise.metric === 'reps' ? exercise.reps || '' :
-                         exercise.metric === 'distance' ? exercise.distance || '' :
-                         exercise.calories || ''}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value) || 0
-                    updateExercise(exercise.id, {
-                      [exercise.metric]: value
-                    })
-                  }}
-                  className="w-full p-2 rounded border border-gray-200"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-500 mb-1">Weight (kg) - Optional</label>
-                <input
-                  type="number"
+                  placeholder="Weight (optional)"
                   value={exercise.weight || ''}
-                  onChange={(e) => updateExercise(exercise.id, { weight: parseInt(e.target.value) })}
-                  className="w-full p-2 rounded border border-gray-200"
+                  onChange={(e) => updateExercise(exercise.id, { 
+                    weight: parseInt(e.target.value) || 0 
+                  })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 pr-12 text-sm"
                 />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                  kg
+                </span>
               </div>
+
+              {/* Optional Notes */}
               <input
                 type="text"
-                placeholder="Notes (optional)"
+                placeholder="Add notes (optional)"
                 value={exercise.notes || ''}
                 onChange={(e) => updateExercise(exercise.id, { notes: e.target.value })}
-                className="w-full p-2 rounded border border-gray-200"
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
               />
             </div>
           ))}
-          
-          <button
-            onClick={addExercise}
-            className="w-full p-3 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/5 transition-all flex items-center justify-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Add Exercise
-          </button>
         </div>
 
         {/* Updated Preview Section */}
@@ -215,19 +370,22 @@ export default function ForTimeWorkout() {
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4">
-          <button className="flex items-center justify-center gap-2 p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/5 transition-all">
-            <Save className="w-5 h-5" />
-            Save Workout
-          </button>
-          <button 
-            className="flex items-center justify-center gap-2 p-4 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={workout.exercises.length === 0}
-          >
-            <Play className="w-5 h-5" />
-            Start Workout
-          </button>
+        {/* Fixed Bottom Action Bar */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-200 p-4 z-50">
+            <div className="container max-w-md mx-auto grid grid-cols-2 gap-3">
+                <button className="px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 text-gray-600 hover:text-blue-600">
+                    <Save className="w-4 h-4" />
+                    Save
+                </button>
+                <button
+                    onClick={startWorkout}
+                    disabled={workout.exercises.length === 0}
+                    className="px-4 py-3 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <Play className="w-4 h-4" />
+                    Start
+                </button>
+            </div>
         </div>
       </main>
     </div>

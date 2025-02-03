@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Plus, Play, Trash2, Save, ChevronLeft, Timer, Clock } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 interface Exercise {
   id: string
@@ -22,6 +23,7 @@ interface AmrapWorkout {
 }
 
 export default function AmrapWorkout() {
+  const router = useRouter()
   const [workout, setWorkout] = useState<AmrapWorkout>({
     name: "",
     timeCap: 20,
@@ -70,6 +72,12 @@ export default function AmrapWorkout() {
       ...workout,
       exercises: workout.exercises.filter(exercise => exercise.id !== exerciseId)
     })
+  }
+
+  const startWorkout = () => {
+    // Store the workout in localStorage before navigating
+    localStorage.setItem('currentAmrapWorkout', JSON.stringify(workout))
+    router.push('/custom-workout/amrap/session')
   }
 
   return (
@@ -247,19 +255,22 @@ export default function AmrapWorkout() {
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4">
-          <button className="flex items-center justify-center gap-2 p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/5 transition-all">
-            <Save className="w-5 h-5" />
-            Save Workout
-          </button>
-          <button 
-            className="flex items-center justify-center gap-2 p-4 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={workout.exercises.length === 0}
-          >
-            <Play className="w-5 h-5" />
-            Start Workout
-          </button>
+        {/* Action Buttons - Updated positioning and spacing */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-200 p-4 z-50">
+            <div className="container max-w-md mx-auto grid grid-cols-2 gap-3">
+                <button className="px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 text-gray-600 hover:text-blue-600">
+                    <Save className="w-4 h-4" />
+                    Save
+                </button>
+                <button
+                    onClick={startWorkout}
+                    disabled={workout.exercises.length === 0}
+                    className="px-4 py-3 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <Play className="w-4 h-4" />
+                    Start
+                </button>
+            </div>
         </div>
       </main>
     </div>

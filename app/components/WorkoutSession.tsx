@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { CheckCircle, X, Plus, Minus, Pause, Play } from 'lucide-react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+import WorkoutSummary from "@/app/components/WorkoutSummary"
 
 interface Exercise {
   exercise: string
@@ -17,6 +19,7 @@ interface Exercise {
 }
 
 interface WorkoutData {
+  name?: string
   warmup: Exercise[]
   mainWorkout: Exercise[]
   cooldown: Exercise[]
@@ -24,6 +27,7 @@ interface WorkoutData {
   difficulty: string
   targetMuscles: string[]
   type: string
+  timePerExercise?: number
   exercises?: {
     warmup: Exercise[]
     mainWorkout: Exercise[]
@@ -46,9 +50,13 @@ export default function WorkoutSession({
   workout: WorkoutData
   onComplete: (summary: any) => void 
 }) {
+  const router = useRouter()
   const [timer, setTimer] = useState(0)
   const [isActive, setIsActive] = useState(true)
   const [isPaused, setIsPaused] = useState(false)
+  const [hasAnnouncedHalfway, setHasAnnouncedHalfway] = useState(false)
+  const [showSummary, setShowSummary] = useState(false)
+  const [completedAt, setCompletedAt] = useState<Date | null>(null)
 
   // Initialize exercises from the workout data
   const [exercises, setExercises] = useState(() => {
@@ -88,6 +96,78 @@ export default function WorkoutSession({
     }
   }, [isActive, isPaused])
 
+  // Load workout data on mount
+  useEffect(() => {
+    const savedWorkout = localStorage.getItem('currentDailyWorkout')
+    if (savedWorkout) {
+      const parsedWorkout = JSON.parse(savedWorkout)
+      setExercises(parsedWorkout.exercises)
+      setTimer(parsedWorkout.timePerExercise || 0)
+    } else {
+      router.push('/daily-workout')
+    }
+  }, [router])
+
+  // Timer logic with synchronized vocal cues
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+
+    if (isActive && !isPaused && timer > 0) {
+      interval = setInterval(() => {
+        // Announce before updating the timer
+        if (timer === 3) speak("3")
+        if (timer === 2) speak("2")
+        if (timer === 1) speak("1")
+        
+        // Check for halfway point in total workout
+        if (workout && !hasAnnouncedHalfway) {
+          const totalExercises = Object.keys(exercises).length
+          const halfwayPoint = Math.floor(totalExercises / 2)
+          if (Object.keys(exercises).indexOf(halfwayPoint.toString()) === timer && timer === workout.timePerExercise) {
+            speak("Half way")
+            setHasAnnouncedHalfway(true)
+          }
+        }
+
+        if (timer === 0) {
+          if (Object.keys(exercises).length > 0) {
+            setTimer(prev => prev - 1)
+          } else {
+            setIsActive(false)
+            speak("Well Done")
+          }
+        } else {
+          setTimer(prev => prev - 1)
+        }
+      }, 1000)
+    }
+
+    return () => clearInterval(interval)
+  }, [isActive, isPaused, timer, exercises, workout, hasAnnouncedHalfway])
+
+  // Start workout announcement
+  const toggleTimer = () => {
+    if (!isActive) {
+      if (Object.keys(exercises).length > 0) {
+        speak("Let's Go")
+      }
+    }
+    setIsActive(!isActive)
+  }
+
+  // Reset timer with speech cancellation
+  const resetTimer = () => {
+    window.speechSynthesis.cancel()
+    setIsActive(false)
+    setTimer(workout?.timePerExercise || 0)
+    setExercises({
+      warmup: [],
+      mainWorkout: [],
+      cooldown: []
+    })
+    setHasAnnouncedHalfway(false)
+  }
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
@@ -120,6 +200,93 @@ export default function WorkoutSession({
     }));
   };
 
+  // Speech synthesis function with enhanced male voice
+  const speak = (text: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      const utterance = new SpeechSynthesisUtterance(text)
+      
+      // Get available voices and wait if needed
+      let voices = window.speechSynthesis.getVoices()
+      if (voices.length === 0) {
+        window.speechSynthesis.addEventListener('voiceschanged', () => {
+          voices = window.speechSynthesis.getVoices()
+        })
+      }
+
+      // Try to find a male voice
+      const preferredVoice = voices.find(
+        voice => 
+          (voice.name.includes('Male') || 
+           voice.name.includes('Daniel') ||
+           voice.name.includes('David') ||
+           voice.name.includes('James')) &&
+          (voice.lang.includes('en-US') || voice.lang.includes('en-GB'))
+      )
+
+      if (preferredVoice) {
+        utterance.voice = preferredVoice
+      }
+
+      // Adjust for enthusiasm and lower tone
+      utterance.pitch = 0.9
+      utterance.rate = 1.1
+      utterance.volume = 1.0
+      
+      // Add emphasis to motivational phrases
+      if (text === "Let's Go" || text === "Well Done" || text === "Half way") {
+        utterance.pitch = 1.1
+        utterance.rate = 1.2
+      }
+
+      window.speechSynthesis.speak(utterance)
+    }
+  }
+
+  const handleComplete = () => {
+    setIsActive(false)
+    setCompletedAt(new Date())
+    speak("Well Done")
+    setShowSummary(true)
+  }
+
+  const handleSave = async () => {
+    // TODO: Implement save functionality
+    console.log('Saving workout...')
+    setShowSummary(false)
+    onComplete({
+      duration: formatTime(timer),
+      exercises: [
+        ...workout.warmup.map(e => ({ name: e.exercise, reps: Number(e.reps), weight: e.weight })),
+        ...workout.mainWorkout.map(e => ({ name: e.exercise, reps: Number(e.reps), weight: e.weight })),
+        ...workout.cooldown.map(e => ({ name: e.exercise, reps: Number(e.reps), weight: e.weight }))
+      ],
+      completedAt: completedAt
+    })
+  }
+
+  const handleShare = async () => {
+    try {
+      const shareData = {
+        title: workout.name || 'Daily Workout',
+        text: `I completed my daily workout in ${formatTime(timer)}!`,
+        url: window.location.href
+      }
+      
+      if (navigator.share) {
+        await navigator.share(shareData)
+      } else {
+        await navigator.clipboard.writeText(
+          `${shareData.title}\n${shareData.text}\n${shareData.url}`
+        )
+        alert('Workout details copied to clipboard!')
+      }
+    } catch (error) {
+      console.error('Error sharing:', error)
+    }
+    setShowSummary(false)
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-28">
       {/* Timer Section */}
@@ -151,7 +318,11 @@ export default function WorkoutSession({
             onClick={() => {
               const summary = {
                 duration: formatTime(timer),
-                exercises
+                exercises: [
+                  ...workout.warmup.map(e => ({ name: e.exercise, reps: Number(e.reps), weight: e.weight })),
+                  ...workout.mainWorkout.map(e => ({ name: e.exercise, reps: Number(e.reps), weight: e.weight })),
+                  ...workout.cooldown.map(e => ({ name: e.exercise, reps: Number(e.reps), weight: e.weight }))
+                ]
               }
               onComplete(summary)
             }}
@@ -276,19 +447,32 @@ export default function WorkoutSession({
         {/* End Workout Button */}
         <div className="fixed bottom-8 left-0 right-0 px-4 z-10">
           <button
-            onClick={() => {
-              const summary = {
-                duration: formatTime(timer),
-                exercises
-              }
-              onComplete(summary)
-            }}
+            onClick={handleComplete}
             className="w-full max-w-2xl mx-auto bg-rose-500 text-white font-medium p-4 rounded-xl hover:bg-rose-600 transition-all shadow-lg block"
           >
             End Workout
           </button>
         </div>
       </div>
+
+      {/* Add WorkoutSummary component */}
+      <WorkoutSummary
+        isOpen={showSummary}
+        onClose={() => setShowSummary(false)}
+        onSave={handleSave}
+        onShare={handleShare}
+        workout={{
+          name: workout.name || 'Daily Workout',
+          type: 'DAILY',
+          exercises: [
+            ...workout.warmup.map(e => ({ name: e.exercise, reps: Number(e.reps), weight: e.weight })),
+            ...workout.mainWorkout.map(e => ({ name: e.exercise, reps: Number(e.reps), weight: e.weight })),
+            ...workout.cooldown.map(e => ({ name: e.exercise, reps: Number(e.reps), weight: e.weight }))
+          ]
+        }}
+        duration={timer}
+        completedAt={completedAt || new Date()}
+      />
     </div>
   )
 } 
