@@ -200,13 +200,12 @@ export default function WorkoutSession({
     }));
   };
 
-  // Speech synthesis function with enhanced male voice
+  // Updated speech synthesis function to match FOR TIME settings
   const speak = (text: string) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(text)
       
-      // Get available voices and wait if needed
       let voices = window.speechSynthesis.getVoices()
       if (voices.length === 0) {
         window.speechSynthesis.addEventListener('voiceschanged', () => {
@@ -214,7 +213,6 @@ export default function WorkoutSession({
         })
       }
 
-      // Try to find a male voice
       const preferredVoice = voices.find(
         voice => 
           (voice.name.includes('Male') || 
@@ -228,15 +226,16 @@ export default function WorkoutSession({
         utterance.voice = preferredVoice
       }
 
-      // Adjust for enthusiasm and lower tone
-      utterance.pitch = 0.9
-      utterance.rate = 1.1
-      utterance.volume = 1.0
-      
-      // Add emphasis to motivational phrases
+      // Match FOR TIME vocal settings
+      utterance.pitch = 1.1    // Lower pitch for authority
+      utterance.rate = 1.2     // Clearer pace
+      utterance.volume = 1.5   // Strong but not overwhelming
+
+      // Enhanced settings for motivational phrases
       if (text === "Let's Go" || text === "Well Done" || text === "Half way") {
-        utterance.pitch = 1.1
-        utterance.rate = 1.2
+        utterance.pitch = 1.2   // More energetic
+        utterance.rate = 1.3    // Faster for excitement
+        utterance.volume = 2.0   // Fuller volume for motivation
       }
 
       window.speechSynthesis.speak(utterance)
@@ -288,8 +287,8 @@ export default function WorkoutSession({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-28">
-      {/* Timer Section */}
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-40">
+      {/* Timer Section - Updated styling */}
       <div className="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-blue-100 shadow-sm p-4 mb-6">
         <div className="max-w-2xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
@@ -301,15 +300,17 @@ export default function WorkoutSession({
               className="h-8 w-auto"
             />
             <div className="flex items-center gap-3">
-              <span className="text-3xl font-bold text-blue-900">{formatTime(timer)}</span>
+              <span className="text-4xl font-mono font-bold text-blue-900">
+                {formatTime(timer)}
+              </span>
               <button
                 onClick={() => setIsPaused(!isPaused)}
                 className="p-2.5 rounded-full hover:bg-blue-50 transition-colors"
               >
                 {isPaused ? (
-                  <Play className="w-5 h-5 text-blue-600" />
+                  <Play className="w-6 h-6 text-blue-600" />
                 ) : (
-                  <Pause className="w-5 h-5 text-blue-400" />
+                  <Pause className="w-6 h-6 text-blue-400" />
                 )}
               </button>
             </div>
@@ -333,10 +334,10 @@ export default function WorkoutSession({
         </div>
       </div>
 
-      {/* Show pause overlay when workout is paused */}
+      {/* Enhanced pause overlay */}
       {isPaused && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white p-8 rounded-lg text-center max-w-sm mx-4 shadow-xl">
+          <div className="bg-white p-8 rounded-xl text-center max-w-sm mx-4 shadow-xl">
             <h3 className="text-2xl font-bold text-gray-900 mb-2">Workout Paused</h3>
             <p className="text-gray-600 mb-6">Take the time you need. Your progress is saved.</p>
             <button
@@ -353,14 +354,14 @@ export default function WorkoutSession({
       <div className="max-w-2xl mx-auto px-4">
         {Object.entries(exercises).map(([section, sectionExercises]) => (
           <section key={section} className="mb-8">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
               {section.replace(/([A-Z])/g, ' $1').trim()}
             </h3>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {sectionExercises.map((exercise: Exercise, index: number) => (
                 <div
                   key={index}
-                  className="p-4 rounded-lg border border-gray-200 bg-white shadow-sm hover:border-blue-200 transition-colors"
+                  className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm hover:border-blue-200 transition-colors"
                 >
                   <div className="flex justify-between items-start">
                     <div>
@@ -444,11 +445,11 @@ export default function WorkoutSession({
           </section>
         ))}
 
-        {/* End Workout Button */}
-        <div className="fixed bottom-8 left-0 right-0 px-4 z-10">
+        {/* End Workout Button - Updated positioning */}
+        <div className="fixed bottom-20 left-0 right-0 px-4 z-[5]">
           <button
             onClick={handleComplete}
-            className="w-full max-w-2xl mx-auto bg-rose-500 text-white font-medium p-4 rounded-xl hover:bg-rose-600 transition-all shadow-lg block"
+            className="w-full max-w-2xl mx-auto bg-blue-500 text-white font-medium p-4 rounded-xl hover:bg-blue-600 transition-all shadow-lg block"
           >
             End Workout
           </button>

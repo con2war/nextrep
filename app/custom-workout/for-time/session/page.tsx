@@ -62,9 +62,9 @@ export default function ForTimeSession() {
       }
 
       // Adjust for enthusiasm and lower tone
-      utterance.pitch = 2.0
-      utterance.rate = 1.8
-      utterance.volume = 2.0
+      utterance.pitch = 1.1    // Lower pitch sounds more authoritative/motivational
+      utterance.rate = 1.2     // Slightly slower for clarity and impact
+      utterance.volume = 1.5 
       
       // Add emphasis to motivational phrases
       if (text === "Let's Go" || text === "Well Done") {

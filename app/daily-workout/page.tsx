@@ -5,10 +5,36 @@ import { Dumbbell, ArrowRight, Loader2, Play, CheckCircle, Share2, Save, BarChar
 import WorkoutSession from '../components/WorkoutSession'
 import Image from 'next/image'
 import { useUser } from '@auth0/nextjs-auth0/client'
+import { useRouter } from 'next/navigation'
+import Link from "next/link"
 
 type WorkoutGoal = 'strength' | 'hypertrophy' | 'powerlifting' | 'yoga' | 'conditioning' | 'endurance' | 'fat_loss' | 'mobility' | 'functional' | 'athletic'
 type Equipment = 'freeWeights' | 'machines' | 'dumbbells' | 'kettlebells' | 'assaultBike' | 'medicineBalls' | 'resistanceBands'
 type MuscleGroup = 'fullBody' | 'upperBody' | 'lowerBody' | 'core' | 'back' | 'chest' | 'arms' | 'shoulders' | 'legs'
+
+interface Exercise {
+  exercise: string
+  sets?: number
+  reps?: number
+  duration?: string
+  rest?: string
+  notes?: string
+  type?: string
+  completed?: number
+  weight?: number
+}
+
+interface WorkoutData {
+  name?: string
+  warmup: Exercise[]
+  mainWorkout: Exercise[]
+  cooldown: Exercise[]
+  duration: string
+  difficulty: string
+  targetMuscles: string[]
+  type: string
+  timePerExercise?: number
+}
 
 // Add interface for workout response
 interface WorkoutResponse {
@@ -66,7 +92,7 @@ export default function DailyWorkout() {
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment[]>([])
   const [timeLimit, setTimeLimit] = useState<number>(45)
   const [selectedMuscleGroups, setSelectedMuscleGroups] = useState<string[]>([])
-  const [workout, setWorkout] = useState<WorkoutResponse | null>(null)
+  const [workout, setWorkout] = useState<WorkoutData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isWorkoutStarted, setIsWorkoutStarted] = useState(false)
   const [workoutSummary, setWorkoutSummary] = useState<WorkoutSummary | null>(null)
@@ -75,6 +101,9 @@ export default function DailyWorkout() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaved, setIsSaved] = useState(false)
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   const goals = [
     { 
@@ -243,6 +272,32 @@ export default function DailyWorkout() {
     }
   }, [])
 
+  useEffect(() => {
+    const fetchWorkout = async () => {
+      try {
+        const response = await fetch('/api/generate-workout')
+        if (!response.ok) {
+          throw new Error('Failed to fetch workout')
+        }
+        const data = await response.json()
+        setWorkout(data)
+        // Combine all exercises into a single array
+        const allExercises = [
+          ...(data.warmup || []),
+          ...(data.mainWorkout || []),
+          ...(data.cooldown || [])
+        ]
+        setExercises(allExercises)
+        setLoading(false)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Something went wrong')
+        setLoading(false)
+      }
+    }
+
+    fetchWorkout()
+  }, [])
+
   const handleGenerateWorkout = async () => {
     setStep('generating')
     setError(null)
@@ -401,7 +456,7 @@ export default function DailyWorkout() {
                   <h4 className="font-medium capitalize">{section}</h4>
                 </div>
                 <div className="divide-y divide-gray-200">
-                  {exercises.map((ex: any, index: number) => (
+                  {Array.isArray(exercises) && exercises.map((ex: any, index: number) => (
                     <div key={index} className="p-4">
                       <p className="font-medium mb-1">{ex.exercise}</p>
                       <p className="text-sm text-gray-400">

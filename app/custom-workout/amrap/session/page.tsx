@@ -59,10 +59,9 @@ export default function AmrapSession() {
         utterance.voice = preferredVoice
       }
 
-      // Adjust for enthusiasm and lower tone
-      utterance.pitch = 2.0
-      utterance.rate = 1.8
-      utterance.volume = 2.0
+      utterance.pitch = 1.1    // Lower pitch sounds more authoritative/motivational
+      utterance.rate = 1.2     // Slightly slower for clarity and impact
+      utterance.volume = 1.5 
       
       if (text === "Let's Go" || text === "Well Done" || text === "Half way") {
         utterance.pitch = 1.1

@@ -3,6 +3,7 @@ import fs from 'fs'
 import csv from 'csv-parser'
 
 export interface GymExercise {
+  id?: string
   name: string
   type: string
   equipment: string
