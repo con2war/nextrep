@@ -149,13 +149,19 @@ export default function TabataWorkout() {
   }
 
   const startWorkout = () => {
+    // Validate workout
+    if (workout.exercises.length === 0) return
+    if (!workout.workInterval) return
+    if (!workout.restInterval) return
+    if (!workout.rounds) return
+
     // Store the workout in localStorage before navigating
     localStorage.setItem('currentTabataWorkout', JSON.stringify(workout))
     router.push('/custom-workout/tabata/session')
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-24">
       <main className="max-w-2xl mx-auto px-4 py-8">
         {/* Back Navigation */}
         <Link 
@@ -372,14 +378,32 @@ export default function TabataWorkout() {
                   {exercise.name}
                   {exercise.metric === 'reps' && exercise.reps ? ` (Target: ${exercise.reps} reps)` : ''}
                   {exercise.metric === 'distance' && exercise.distance ? ` (Target: ${exercise.distance}m)` : ''}
-                  {exercise.metric === 'calories' && exercise.calories ? ` (Target: ${exercise.calories} cals)` : ''}
-                  {exercise.weight ? ` (${exercise.weight}kg)` : ""}
-                  {exercise.notes ? ` - ${exercise.notes}` : ""}
+                  {exercise.metric === 'calories' && exercise.calories ? ` (Target: ${exercise.calories} calories)` : ''}
                 </p>
               ))}
             </div>
           </div>
         )}
+
+        {/* Action Buttons - Updated to match other workout pages */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-200 p-4 z-50">
+          <div className="container max-w-md mx-auto grid grid-cols-2 gap-3">
+            <button 
+              className="px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 text-gray-600 hover:text-blue-600"
+            >
+              <Save className="w-4 h-4" />
+              Save
+            </button>
+            <button
+              onClick={startWorkout}
+              disabled={workout.exercises.length === 0}
+              className="px-4 py-3 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Play className="w-4 h-4" />
+              Start
+            </button>
+          </div>
+        </div>
       </main>
     </div>
   )
