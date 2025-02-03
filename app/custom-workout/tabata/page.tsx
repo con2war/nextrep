@@ -56,20 +56,6 @@ export default function TabataWorkout() {
       .catch(error => console.error('Error fetching exercises:', error))
   }, [])
 
-  // Add useEffect for handling clicks outside suggestions
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (showSuggestions) {
-        setShowSuggestions(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showSuggestions])
-
   // Handle exercise input and suggestions
   const handleExerciseInput = (value: string, exerciseId: string) => {
     setCurrentExercise(value)
@@ -89,8 +75,15 @@ export default function TabataWorkout() {
     }
   }
 
-  // Add keyboard event handler
-  const handleKeyDown = (event: React.KeyboardEvent, exerciseId: string) => {
+  // Super simple suggestion click handler - just update the exercise name
+  const handleSuggestionClick = (selectedName: string, exerciseId: string) => {
+    console.log('Selected:', selectedName) // Debug log
+    updateExercise(exerciseId, { name: selectedName })
+    setShowSuggestions(false)
+  }
+
+  // Handle keyboard events
+  const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter' || event.key === 'Escape') {
       setShowSuggestions(false)
     }
@@ -269,24 +262,17 @@ export default function TabataWorkout() {
                     placeholder="Exercise name"
                     value={exercise.name}
                     onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
-                    onKeyDown={(e) => handleKeyDown(e, exercise.id)}
+                    onKeyDown={handleKeyDown}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 mb-3"
                   />
                   
-                  {showSuggestions && exercise.name === currentExercise && (
-                    <div 
-                      className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                  {showSuggestions && (
+                    <div className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg">
                       {suggestions.map((suggestion, idx) => (
-                        <button
+                        <div
                           key={idx}
-                          onClick={() => {
-                            updateExercise(exercise.id, { name: suggestion.name })
-                            setCurrentExercise(suggestion.name)
-                            setShowSuggestions(false)
-                          }}
-                          className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
+                          onClick={() => handleSuggestionClick(suggestion.name, exercise.id)}
+                          className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0 cursor-pointer"
                         >
                           <div className="font-medium">{suggestion.name}</div>
                           <div className="text-sm text-gray-500 flex items-center gap-2">
@@ -298,7 +284,7 @@ export default function TabataWorkout() {
                               </>
                             )}
                           </div>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -391,29 +377,10 @@ export default function TabataWorkout() {
                   {exercise.notes ? ` - ${exercise.notes}` : ""}
                 </p>
               ))}
-              <p className="mt-4 text-sm">Total Time: {totalTime} minutes</p>
             </div>
           </div>
         )}
-
-        {/* Fixed Bottom Action Bar */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-200 p-4 z-50">
-            <div className="container max-w-md mx-auto grid grid-cols-2 gap-3">
-                <button className="px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 text-gray-600 hover:text-blue-600">
-                    <Save className="w-4 h-4" />
-                    Save
-                </button>
-                <button
-                    onClick={startWorkout}
-                    disabled={workout.exercises.length === 0}
-                    className="px-4 py-3 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    <Play className="w-4 h-4" />
-                    Start
-                </button>
-            </div>
-        </div>
       </main>
     </div>
   )
-} 
+}

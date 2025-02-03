@@ -24,6 +24,15 @@ interface AmrapWorkout {
   exercises: Exercise[]
 }
 
+interface GymExercise {
+    name: string
+    type: string
+    equipment: string
+    difficulty: string
+    muscle: string
+    description: string
+}
+
 export default function AmrapWorkout() {
   const router = useRouter()
   const [workout, setWorkout] = useState<AmrapWorkout>({
@@ -33,7 +42,8 @@ export default function AmrapWorkout() {
   })
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [currentExercise, setCurrentExercise] = useState('')
-  const [suggestions, setSuggestions] = useState<Exercise[]>([])
+  const [suggestions, setSuggestions] = useState<GymExercise[]>([])
+  const [exercises, setExercises] = useState<GymExercise[]>([])
 
   const updateTimeCap = (value: string) => {
     const parsedValue = value === '' ? '' : parseInt(value)
@@ -66,12 +76,15 @@ export default function AmrapWorkout() {
   }
 
   const updateExercise = (exerciseId: string, updates: Partial<Exercise>) => {
-    setWorkout({
-      ...workout,
-      exercises: workout.exercises.map(exercise => 
-        exercise.id === exerciseId ? { ...exercise, ...updates } : exercise
+    console.log('Updating exercise:', exerciseId, updates)
+    setWorkout(prev => ({
+      ...prev,
+      exercises: prev.exercises.map(exercise =>
+        exercise.id === exerciseId 
+          ? { ...exercise, ...updates }
+          : exercise
       )
-    })
+    }))
   }
 
   const removeExercise = (exerciseId: string) => {
@@ -87,26 +100,21 @@ export default function AmrapWorkout() {
     router.push('/custom-workout/amrap/session')
   }
 
-  // Add useEffect for handling clicks outside suggestions
+  // Fetch exercises from CSV
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (showSuggestions) {
-        setShowSuggestions(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showSuggestions])
+    fetch('/api/exercises')
+      .then(res => res.json())
+      .then(data => setExercises(data))
+      .catch(error => console.error('Error fetching exercises:', error))
+  }, [])
 
   const handleExerciseInput = (value: string, exerciseId: string) => {
-    setCurrentExercise(value)
+    // Update the exercise name as user types
     updateExercise(exerciseId, { name: value })
     
+    // Show suggestions if we have 2 or more characters
     if (value.length >= 2) {
-      const filtered = workout.exercises
+      const filtered = exercises
         .filter(ex => 
           ex.name.toLowerCase().includes(value.toLowerCase()) ||
           ex.muscle.toLowerCase().includes(value.toLowerCase())
@@ -119,8 +127,15 @@ export default function AmrapWorkout() {
     }
   }
 
-  // Add keyboard event handler
-  const handleKeyDown = (event: React.KeyboardEvent, exerciseId: string) => {
+  // Super simple suggestion click handler - just update the exercise name
+  const handleSuggestionClick = (selectedName: string, exerciseId: string) => {
+    console.log('Selected:', selectedName) // Debug log
+    updateExercise(exerciseId, { name: selectedName })
+    setShowSuggestions(false)
+  }
+
+  // Handle keyboard events
+  const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter' || event.key === 'Escape') {
       setShowSuggestions(false)
     }
@@ -203,7 +218,7 @@ export default function AmrapWorkout() {
             </span>
           </div>
           {workout.exercises.map((exercise, index) => (
-            <div key={exercise.id} className="bg-white/30 p-4 rounded-lg space-y-3">
+            <div key={exercise.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="flex items-center gap-4">
                 <span className="text-gray-500 font-medium">#{index + 1}</span>
                 <div className="relative">
@@ -212,24 +227,17 @@ export default function AmrapWorkout() {
                     placeholder="Exercise name"
                     value={exercise.name}
                     onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
-                    onKeyDown={(e) => handleKeyDown(e, exercise.id)}
+                    onKeyDown={handleKeyDown}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   />
                   
-                  {showSuggestions && exercise.name === currentExercise && (
-                    <div 
-                      className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                  {showSuggestions && (
+                    <div className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg">
                       {suggestions.map((suggestion, idx) => (
-                        <button
+                        <div
                           key={idx}
-                          onClick={() => {
-                            updateExercise(exercise.id, { name: suggestion.name })
-                            setCurrentExercise(suggestion.name)
-                            setShowSuggestions(false)
-                          }}
-                          className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
+                          onClick={() => handleSuggestionClick(suggestion.name, exercise.id)}
+                          className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0 cursor-pointer"
                         >
                           <div className="font-medium">{suggestion.name}</div>
                           <div className="text-sm text-gray-500 flex items-center gap-2">
@@ -241,7 +249,7 @@ export default function AmrapWorkout() {
                               </>
                             )}
                           </div>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   )}

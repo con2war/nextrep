@@ -125,7 +125,7 @@ export default function EmomWorkout() {
         router.push('/custom-workout/emom/session')
     }
 
-    // Fetch exercises from API
+    // Fetch exercises from CSV
     useEffect(() => {
         fetch('/api/exercises')
             .then(res => res.json())
@@ -133,24 +133,11 @@ export default function EmomWorkout() {
             .catch(error => console.error('Error fetching exercises:', error))
     }, [])
 
-    // Add useEffect for handling clicks outside suggestions
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (showSuggestions) {
-                setShowSuggestions(false)
-            }
-        }
-
-        document.addEventListener('mousedown', handleClickOutside)
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside)
-        }
-    }, [showSuggestions])
-
     const handleExerciseInput = (value: string, exerciseId: string) => {
-        setCurrentExercise(value)
+        // Update the exercise name as user types
         updateExercise(exerciseId, { name: value })
         
+        // Show suggestions if we have 2 or more characters
         if (value.length >= 2) {
             const filtered = exercises
                 .filter(ex => 
@@ -165,8 +152,15 @@ export default function EmomWorkout() {
         }
     }
 
-    // Add keyboard event handler
-    const handleKeyDown = (event: React.KeyboardEvent, exerciseId: string) => {
+    // Super simple suggestion click handler - just update the exercise name
+    const handleSuggestionClick = (selectedName: string, exerciseId: string) => {
+        console.log('Selected:', selectedName) // Debug log
+        updateExercise(exerciseId, { name: selectedName })
+        setShowSuggestions(false)
+    }
+
+    // Handle keyboard events
+    const handleKeyDown = (event: React.KeyboardEvent) => {
         if (event.key === 'Enter' || event.key === 'Escape') {
             setShowSuggestions(false)
         }
@@ -296,24 +290,17 @@ export default function EmomWorkout() {
                                         placeholder="Exercise name"
                                         value={exercise.name}
                                         onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
-                                        onKeyDown={(e) => handleKeyDown(e, exercise.id)}
+                                        onKeyDown={handleKeyDown}
                                         className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                                     />
                                     
-                                    {showSuggestions && exercise.name === currentExercise && (
-                                        <div 
-                                            className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg"
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
+                                    {showSuggestions && (
+                                        <div className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg">
                                             {suggestions.map((suggestion, idx) => (
-                                                <button
+                                                <div
                                                     key={idx}
-                                                    onClick={() => {
-                                                        updateExercise(exercise.id, { name: suggestion.name })
-                                                        setCurrentExercise(suggestion.name)
-                                                        setShowSuggestions(false)
-                                                    }}
-                                                    className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
+                                                    onClick={() => handleSuggestionClick(suggestion.name, exercise.id)}
+                                                    className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0 cursor-pointer"
                                                 >
                                                     <div className="font-medium">{suggestion.name}</div>
                                                     <div className="text-sm text-gray-500 flex items-center gap-2">
@@ -325,7 +312,7 @@ export default function EmomWorkout() {
                                                             </>
                                                         )}
                                                     </div>
-                                                </button>
+                                                </div>
                                             ))}
                                         </div>
                                     )}

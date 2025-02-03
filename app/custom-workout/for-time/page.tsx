@@ -48,20 +48,6 @@ export default function ForTimeWorkout() {
       .catch(error => console.error('Error loading exercises:', error))
   }, [])
 
-  // Add useEffect for handling clicks outside suggestions
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (showSuggestions) {
-        setShowSuggestions(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showSuggestions])
-
   const handleExerciseInput = (value: string, exerciseId: string) => {
     setCurrentExercise(value)
     updateExercise(exerciseId, { name: value })
@@ -137,6 +123,12 @@ export default function ForTimeWorkout() {
     if (workout.exercises.length === 0) return
     localStorage.setItem('currentForTimeWorkout', JSON.stringify(workout))
     router.push('/custom-workout/for-time/session')
+  }
+
+  const handleSuggestionClick = (selectedName: string, exerciseId: string) => {
+    console.log('Selected:', selectedName) // Debug log
+    updateExercise(exerciseId, { name: selectedName })
+    setShowSuggestions(false)
   }
 
   return (
