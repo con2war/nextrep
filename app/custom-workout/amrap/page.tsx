@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, Play, Trash2, Save, ChevronLeft, Timer, Clock } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -14,6 +14,8 @@ interface Exercise {
   calories?: number
   notes?: string
   metric: 'reps' | 'distance' | 'calories'
+  muscle: string
+  difficulty?: string
 }
 
 interface AmrapWorkout {
@@ -29,6 +31,9 @@ export default function AmrapWorkout() {
     timeCap: 20,
     exercises: []
   })
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [currentExercise, setCurrentExercise] = useState('')
+  const [suggestions, setSuggestions] = useState<Exercise[]>([])
 
   const updateTimeCap = (value: string) => {
     const parsedValue = value === '' ? '' : parseInt(value)
@@ -53,7 +58,9 @@ export default function AmrapWorkout() {
         id: Date.now().toString(),
         name: '',
         reps: 10,
-        metric: 'reps'
+        metric: 'reps',
+        muscle: '',
+        difficulty: ''
       }]
     })
   }
@@ -78,6 +85,45 @@ export default function AmrapWorkout() {
     // Store the workout in localStorage before navigating
     localStorage.setItem('currentAmrapWorkout', JSON.stringify(workout))
     router.push('/custom-workout/amrap/session')
+  }
+
+  // Add useEffect for handling clicks outside suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showSuggestions) {
+        setShowSuggestions(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSuggestions])
+
+  const handleExerciseInput = (value: string, exerciseId: string) => {
+    setCurrentExercise(value)
+    updateExercise(exerciseId, { name: value })
+    
+    if (value.length >= 2) {
+      const filtered = workout.exercises
+        .filter(ex => 
+          ex.name.toLowerCase().includes(value.toLowerCase()) ||
+          ex.muscle.toLowerCase().includes(value.toLowerCase())
+        )
+        .slice(0, 3)
+      setSuggestions(filtered)
+      setShowSuggestions(filtered.length > 0)
+    } else {
+      setShowSuggestions(false)
+    }
+  }
+
+  // Add keyboard event handler
+  const handleKeyDown = (event: React.KeyboardEvent, exerciseId: string) => {
+    if (event.key === 'Enter' || event.key === 'Escape') {
+      setShowSuggestions(false)
+    }
   }
 
   return (
@@ -160,13 +206,46 @@ export default function AmrapWorkout() {
             <div key={exercise.id} className="bg-white/30 p-4 rounded-lg space-y-3">
               <div className="flex items-center gap-4">
                 <span className="text-gray-500 font-medium">#{index + 1}</span>
-                <input
-                  type="text"
-                  placeholder="Exercise name"
-                  value={exercise.name}
-                  onChange={(e) => updateExercise(exercise.id, { name: e.target.value })}
-                  className="flex-grow p-2 rounded border border-gray-200"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Exercise name"
+                    value={exercise.name}
+                    onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
+                    onKeyDown={(e) => handleKeyDown(e, exercise.id)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                  
+                  {showSuggestions && exercise.name === currentExercise && (
+                    <div 
+                      className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {suggestions.map((suggestion, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            updateExercise(exercise.id, { name: suggestion.name })
+                            setCurrentExercise(suggestion.name)
+                            setShowSuggestions(false)
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
+                        >
+                          <div className="font-medium">{suggestion.name}</div>
+                          <div className="text-sm text-gray-500 flex items-center gap-2">
+                            <span>{suggestion.muscle}</span>
+                            {suggestion.difficulty && (
+                              <>
+                                <span>•</span>
+                                <span>{suggestion.difficulty}</span>
+                              </>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => removeExercise(exercise.id)}
                   className="text-red-500 hover:text-red-600"

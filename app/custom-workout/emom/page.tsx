@@ -133,9 +133,23 @@ export default function EmomWorkout() {
             .catch(error => console.error('Error fetching exercises:', error))
     }, [])
 
-    // Handle exercise input and suggestions
+    // Add useEffect for handling clicks outside suggestions
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (showSuggestions) {
+                setShowSuggestions(false)
+            }
+        }
+
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+        }
+    }, [showSuggestions])
+
     const handleExerciseInput = (value: string, exerciseId: string) => {
         setCurrentExercise(value)
+        updateExercise(exerciseId, { name: value })
         
         if (value.length >= 2) {
             const filtered = exercises
@@ -149,9 +163,13 @@ export default function EmomWorkout() {
         } else {
             setShowSuggestions(false)
         }
-        
-        // Update the exercise name
-        updateExercise(exerciseId, { name: value })
+    }
+
+    // Add keyboard event handler
+    const handleKeyDown = (event: React.KeyboardEvent, exerciseId: string) => {
+        if (event.key === 'Enter' || event.key === 'Escape') {
+            setShowSuggestions(false)
+        }
     }
 
     return (
@@ -278,20 +296,21 @@ export default function EmomWorkout() {
                                         placeholder="Exercise name"
                                         value={exercise.name}
                                         onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 mb-3"
+                                        onKeyDown={(e) => handleKeyDown(e, exercise.id)}
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                                     />
                                     
-                                    {/* Suggestions Dropdown */}
                                     {showSuggestions && exercise.name === currentExercise && (
-                                        <div className="absolute z-10 left-0 right-0 mt-1 bg-white rounded-lg border border-gray-200 shadow-lg">
+                                        <div 
+                                            className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
                                             {suggestions.map((suggestion, idx) => (
                                                 <button
                                                     key={idx}
                                                     onClick={() => {
-                                                        updateExercise(exercise.id, { 
-                                                            name: suggestion.name,
-                                                            // Optionally add other exercise details here
-                                                        })
+                                                        updateExercise(exercise.id, { name: suggestion.name })
+                                                        setCurrentExercise(suggestion.name)
                                                         setShowSuggestions(false)
                                                     }}
                                                     className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"

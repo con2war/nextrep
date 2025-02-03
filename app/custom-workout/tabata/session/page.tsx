@@ -78,9 +78,9 @@ export default function TabataSession() {
       }
 
       // Adjust for enthusiasm and lower tone
-      utterance.pitch = 0.9
-      utterance.rate = 1.1
-      utterance.volume = 1.0
+      utterance.pitch = 2.0
+      utterance.rate = 1.8
+      utterance.volume = 2.0
       
       // Add emphasis to motivational phrases
       if (text === "Let's Go" || text === "Well Done") {

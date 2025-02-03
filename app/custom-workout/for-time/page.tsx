@@ -48,19 +48,23 @@ export default function ForTimeWorkout() {
       .catch(error => console.error('Error loading exercises:', error))
   }, [])
 
-  // Handle clicks outside suggestions
+  // Add useEffect for handling clicks outside suggestions
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showSuggestions) {
         setShowSuggestions(false)
       }
     }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
 
-  const handleExerciseInput = (value: string) => {
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSuggestions])
+
+  const handleExerciseInput = (value: string, exerciseId: string) => {
     setCurrentExercise(value)
+    updateExercise(exerciseId, { name: value })
     
     if (value.length >= 2) {
       const filtered = exercises
@@ -68,7 +72,7 @@ export default function ForTimeWorkout() {
           ex.name.toLowerCase().includes(value.toLowerCase()) ||
           ex.muscle.toLowerCase().includes(value.toLowerCase())
         )
-        .slice(0, 3) // Limit to 3 suggestions
+        .slice(0, 3)
       setSuggestions(filtered)
       setShowSuggestions(filtered.length > 0)
     } else {
@@ -76,14 +80,9 @@ export default function ForTimeWorkout() {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && currentExercise) {
-      if (suggestions.length > 0) {
-        addExercise(suggestions[0]) // Add first suggestion
-      } else {
-        addExercise() // Add custom exercise
-      }
-    } else if (e.key === 'Escape') {
+  // Add keyboard event handler
+  const handleKeyDown = (event: React.KeyboardEvent, exerciseId: string) => {
+    if (event.key === 'Enter' || event.key === 'Escape') {
       setShowSuggestions(false)
     }
   }
@@ -194,8 +193,8 @@ export default function ForTimeWorkout() {
             <input
               type="text"
               value={currentExercise}
-              onChange={(e) => handleExerciseInput(e.target.value)}
-              onKeyDown={handleKeyDown}
+              onChange={(e) => handleExerciseInput(e.target.value, '')}
+              onKeyDown={(e) => handleKeyDown(e, '')}
               placeholder="Search exercises..."
               className="flex-1 p-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
               autoComplete="off"
@@ -218,7 +217,7 @@ export default function ForTimeWorkout() {
                 <button
                   key={index}
                   onClick={() => {
-                    addExercise(exercise)
+                    handleExerciseInput(exercise.name!, '')
                   }}
                   className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
                 >

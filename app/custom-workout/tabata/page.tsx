@@ -56,6 +56,20 @@ export default function TabataWorkout() {
       .catch(error => console.error('Error fetching exercises:', error))
   }, [])
 
+  // Add useEffect for handling clicks outside suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showSuggestions) {
+        setShowSuggestions(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSuggestions])
+
   // Handle exercise input and suggestions
   const handleExerciseInput = (value: string, exerciseId: string) => {
     setCurrentExercise(value)
@@ -71,6 +85,13 @@ export default function TabataWorkout() {
       setSuggestions(filtered)
       setShowSuggestions(filtered.length > 0)
     } else {
+      setShowSuggestions(false)
+    }
+  }
+
+  // Add keyboard event handler
+  const handleKeyDown = (event: React.KeyboardEvent, exerciseId: string) => {
+    if (event.key === 'Enter' || event.key === 'Escape') {
       setShowSuggestions(false)
     }
   }
@@ -248,12 +269,15 @@ export default function TabataWorkout() {
                     placeholder="Exercise name"
                     value={exercise.name}
                     onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
+                    onKeyDown={(e) => handleKeyDown(e, exercise.id)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 mb-3"
                   />
                   
-                  {/* Suggestions Dropdown */}
                   {showSuggestions && exercise.name === currentExercise && (
-                    <div className="absolute z-10 left-0 right-0 mt-1 bg-white rounded-lg border border-gray-200 shadow-lg">
+                    <div 
+                      className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {suggestions.map((suggestion, idx) => (
                         <button
                           key={idx}
