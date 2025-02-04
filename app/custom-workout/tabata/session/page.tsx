@@ -36,7 +36,7 @@ export default function TabataSession() {
   const [currentRound, setCurrentRound] = useState(1)
   const [currentExercise, setCurrentExercise] = useState(0)
   const [timeRemaining, setTimeRemaining] = useState(0)
-  const [isWorkPeriod, setIsWorkPeriod] = useState(true)
+  const [isWorkInterval, setIsWorkInterval] = useState(true)
   const [showSummary, setShowSummary] = useState(false)
   const [completedAt, setCompletedAt] = useState<Date | null>(null)
   const [totalTime, setTotalTime] = useState(0)
@@ -44,6 +44,7 @@ export default function TabataSession() {
   const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null)
   const [audioInitialized, setAudioInitialized] = useState(false)
   const [isAudioEnabled, setIsAudioEnabled] = useState(true)
+  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0)
 
   // Load workout data on mount
   useEffect(() => {
@@ -52,7 +53,7 @@ export default function TabataSession() {
       const parsedWorkout = JSON.parse(savedWorkout)
       setWorkout(parsedWorkout)
       setTimeRemaining(parsedWorkout.workTime)
-      setIsWorkPeriod(true)
+      setIsWorkInterval(true)
     } else {
       router.push('/custom-workout/tabata')
     }
@@ -130,7 +131,7 @@ export default function TabataSession() {
     setShowSummary(true)
   }
 
-  // Timer logic with beep only at 3 seconds remaining
+  // Timer logic with total rounds calculation
   useEffect(() => {
     let interval: NodeJS.Timeout
 
@@ -138,9 +139,8 @@ export default function TabataSession() {
       interval = setInterval(() => {
         setTimeRemaining(prevTime => {
           const newTime = prevTime - 1
-          console.log('Time remaining:', newTime)
 
-          // Play beep at 3 seconds remaining for both work and rest intervals
+          // Play beep at 3 seconds remaining
           if (newTime === 3) {
             console.log('3 seconds remaining - Playing beep')
             beep()
@@ -148,23 +148,32 @@ export default function TabataSession() {
 
           // Handle interval completion
           if (newTime <= 0) {
-            if (currentRound < workout.rounds * 2) { // Multiply by 2 to account for both work and rest periods
-              // Update interval type and round
-              if (isWorkPeriod) {
-                speak("Rest")
-                setTimeRemaining(workout.restTime)
-              } else {
-                const nextRound = Math.ceil((currentRound + 1) / 2)
-                if (nextRound <= workout.rounds) {
-                  speak(`Round ${nextRound}`)
-                }
-                setTimeRemaining(workout.workTime)
-              }
-              
-              setIsWorkPeriod(!isWorkPeriod)
-              setCurrentRound(currentRound + 1)
-            } else {
+            // Calculate total rounds (rounds × exercises)
+            const totalRounds = workout.rounds * workout.exercises.length
+
+            // Check if workout is complete
+            if (currentRound >= totalRounds) {
               handleComplete()
+              return 0
+            }
+
+            // Increment round by 1
+            const nextRound = currentRound + 1
+            setCurrentRound(nextRound)
+
+            if (isWorkInterval) {
+              // Transition from work to rest
+              speak("Rest")
+              setTimeRemaining(workout.restTime)
+              setIsWorkInterval(false)
+            } else {
+              // Transition from rest to work
+              // Update exercise
+              const nextExerciseIndex = (currentExerciseIndex + 1) % workout.exercises.length
+              setCurrentExerciseIndex(nextExerciseIndex)
+              setTimeRemaining(workout.workTime)
+              setIsWorkInterval(true)
+              speak(`Next up: ${workout.exercises[nextExerciseIndex].name}`)
             }
             return 0
           }
@@ -174,11 +183,16 @@ export default function TabataSession() {
       }, 1000)
     }
 
-    return () => {
-      clearInterval(interval)
-      console.log('Timer cleanup')
+    return () => clearInterval(interval)
+  }, [isRunning, isPaused, workout, currentRound, isWorkInterval, currentExerciseIndex, handleComplete])
+
+  // Initialize workout
+  useEffect(() => {
+    if (workout) {
+      // Set initial exercise name
+      speak(`${workout.exercises[0].name}, Round 1`)
     }
-  }, [isRunning, isPaused, workout, currentRound, isWorkPeriod, handleComplete])
+  }, [workout])
 
   // Update beep function to respect audio state
   const beep = () => {
@@ -293,8 +307,8 @@ export default function TabataSession() {
     return null
   }
 
+  const displayRound = Math.ceil(currentRound / 2)
   const totalRounds = workout.rounds * workout.exercises.length
-  const currentRoundTotal = (currentRound - 1) * workout.exercises.length + currentExercise + 1
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -321,17 +335,20 @@ export default function TabataSession() {
         {/* Workout Name */}
         <h1 className="text-3xl font-bold mb-4 text-center">{workout.name}</h1>
 
-        {/* Round Counter */}
+        {/* Round and Exercise Display */}
         <div className="text-center mb-4">
           <span className="text-xl font-semibold text-gray-600">
-            Round {currentRoundTotal}/{totalRounds}
+            Round {displayRound}/{totalRounds}
           </span>
+          <div className="text-lg text-gray-500 mt-1">
+            {workout.exercises[currentExerciseIndex].name}
+          </div>
         </div>
 
         {/* Interval Type */}
         <div className="text-center mb-4">
-          <span className={`text-xl font-bold ${isWorkPeriod ? 'text-green-500' : 'text-red-500'}`}>
-            {isWorkPeriod ? 'WORK' : 'REST'}
+          <span className={`text-xl font-bold ${isWorkInterval ? 'text-green-500' : 'text-red-500'}`}>
+            {isWorkInterval ? 'WORK' : 'REST'}
           </span>
         </div>
 
