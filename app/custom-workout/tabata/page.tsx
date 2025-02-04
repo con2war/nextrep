@@ -19,8 +19,8 @@ interface Exercise {
 interface TabataWorkout {
   name: string
   rounds: number // typically 8 rounds for traditional Tabata
-  workInterval: number // typically 20 seconds
-  restInterval: number // typically 10 seconds
+  workTime: number | null
+  restTime: number | null
   exercises: Exercise[]
 }
 
@@ -38,8 +38,8 @@ export default function TabataWorkout() {
   const [workout, setWorkout] = useState<TabataWorkout>({
     name: "",
     rounds: 8,
-    workInterval: 20,
-    restInterval: 10,
+    workTime: 20,
+    restTime: 10,
     exercises: []
   })
 
@@ -47,6 +47,7 @@ export default function TabataWorkout() {
   const [currentExercise, setCurrentExercise] = useState("")
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [suggestions, setSuggestions] = useState<GymExercise[]>([])
+  const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null)
 
   // Fetch exercises from API
   useEffect(() => {
@@ -60,6 +61,7 @@ export default function TabataWorkout() {
   const handleExerciseInput = (value: string, exerciseId: string) => {
     setCurrentExercise(value)
     updateExercise(exerciseId, { name: value })
+    setCurrentExerciseId(exerciseId)
     
     if (value.length >= 2) {
       const filtered = exercises
@@ -80,6 +82,7 @@ export default function TabataWorkout() {
     console.log('Selected:', selectedName) // Debug log
     updateExercise(exerciseId, { name: selectedName })
     setShowSuggestions(false)
+    setCurrentExerciseId(null)
   }
 
   // Handle keyboard events
@@ -98,27 +101,9 @@ export default function TabataWorkout() {
     })
   }
 
-  // Update work interval with better handling
-  const updateWorkInterval = (value: string) => {
-    const parsedValue = value === '' ? '' : parseInt(value)
-    setWorkout({ 
-      ...workout, 
-      workInterval: parsedValue === '' ? '' as unknown as number : Math.max(5, parsedValue || 20)
-    })
-  }
-
-  // Update rest interval with better handling
-  const updateRestInterval = (value: string) => {
-    const parsedValue = value === '' ? '' : parseInt(value)
-    setWorkout({ 
-      ...workout, 
-      restInterval: parsedValue === '' ? '' as unknown as number : Math.max(5, parsedValue || 10)
-    })
-  }
-
   // Calculate total workout time
   const totalTime = Math.ceil(
-    (workout.exercises.length * workout.rounds * (workout.workInterval + workout.restInterval)) / 60
+    (workout.exercises.length * workout.rounds * ((workout.workTime ?? 0) + (workout.restTime ?? 0))) / 60
   )
 
   const addExercise = () => {
@@ -151,8 +136,8 @@ export default function TabataWorkout() {
   const startWorkout = () => {
     // Validate workout
     if (workout.exercises.length === 0) return
-    if (!workout.workInterval) return
-    if (!workout.restInterval) return
+    if (!workout.workTime) return
+    if (!workout.restTime) return
     if (!workout.rounds) return
 
     // Store the workout in localStorage before navigating
@@ -160,8 +145,28 @@ export default function TabataWorkout() {
     router.push('/custom-workout/tabata/session')
   }
 
+  // Handle click outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Get the suggestions container
+      const suggestionsContainer = document.querySelector('.suggestions-container')
+      const exerciseInput = document.querySelector('.exercise-input')
+
+      // Check if click is outside both the suggestions and input
+      if (suggestionsContainer && exerciseInput && 
+          !suggestionsContainer.contains(event.target as Node) &&
+          !exerciseInput.contains(event.target as Node)) {
+        setShowSuggestions(false)
+        setCurrentExerciseId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-24">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <main className="max-w-2xl mx-auto px-4 py-8">
         {/* Back Navigation */}
         <Link 
@@ -185,7 +190,53 @@ export default function TabataWorkout() {
           />
         </div>
 
-        {/* Updated Tabata Settings */}
+        {/* Work/Rest Time Inputs - Moved up */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div>
+            <label className="block text-sm text-gray-600 mb-2">Work Time (seconds)</label>
+            <input
+              type="text"
+              value={workout.workTime || ''}
+              onChange={(e) => {
+                const value = e.target.value
+                setWorkout({
+                  ...workout,
+                  workTime: value === '' ? null : parseInt(value)
+                })
+              }}
+              onBlur={(e) => {
+                if (e.target.value === '') {
+                  setWorkout(prev => ({ ...prev, workTime: 20 }))
+                }
+              }}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              placeholder="20"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-2">Rest Time (seconds)</label>
+            <input
+              type="text"
+              value={workout.restTime || ''}
+              onChange={(e) => {
+                const value = e.target.value
+                setWorkout({
+                  ...workout,
+                  restTime: value === '' ? null : parseInt(value)
+                })
+              }}
+              onBlur={(e) => {
+                if (e.target.value === '') {
+                  setWorkout(prev => ({ ...prev, restTime: 10 }))
+                }
+              }}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              placeholder="10"
+            />
+          </div>
+        </div>
+
+        {/* Rounds Input */}
         <div className="mb-8 grid grid-cols-2 gap-4">
           <div>
             <h2 className="text-lg font-medium mb-3">Rounds</h2>
@@ -201,52 +252,6 @@ export default function TabataWorkout() {
               }}
               className="w-full p-3 rounded-lg border border-gray-200 hover:border-blue-500 transition-all"
             />
-          </div>
-          <div>
-            <h2 className="text-lg font-medium mb-3">Intervals</h2>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-sm text-gray-500 mb-1">Work (sec)</label>
-                <input
-                  type="number"
-                  min="5"
-                  value={workout.workInterval}
-                  onChange={(e) => updateWorkInterval(e.target.value)}
-                  onBlur={() => {
-                    if (!workout.workInterval) {
-                      setWorkout({ ...workout, workInterval: 20 })
-                    }
-                  }}
-                  className="w-full p-2 rounded-lg border border-gray-200"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-500 mb-1">Rest (sec)</label>
-                <input
-                  type="number"
-                  min="5"
-                  value={workout.restInterval}
-                  onChange={(e) => updateRestInterval(e.target.value)}
-                  onBlur={() => {
-                    if (!workout.restInterval) {
-                      setWorkout({ ...workout, restInterval: 10 })
-                    }
-                  }}
-                  className="w-full p-2 rounded-lg border border-gray-200"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Total Time Display */}
-        <div className="mb-8 p-4 rounded-lg border border-blue-200 bg-blue-50/30">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-blue-500" />
-              <span className="font-medium">Total Workout Time:</span>
-            </div>
-            <span className="text-blue-600 font-bold">{totalTime} min</span>
           </div>
         </div>
 
@@ -268,12 +273,15 @@ export default function TabataWorkout() {
                     placeholder="Exercise name"
                     value={exercise.name}
                     onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
+                    onFocus={() => setCurrentExerciseId(exercise.id)}
                     onKeyDown={handleKeyDown}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 mb-3"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 exercise-input"
                   />
                   
-                  {showSuggestions && (
-                    <div className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg">
+                  {showSuggestions && currentExerciseId === exercise.id && (
+                    <div 
+                      className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container"
+                    >
                       {suggestions.map((suggestion, idx) => (
                         <div
                           key={idx}
@@ -363,6 +371,17 @@ export default function TabataWorkout() {
           </button>
         </div>
 
+        {/* Total Time Display - Moved below Add Exercise button */}
+        <div className="mb-8 p-4 rounded-lg border border-blue-200 bg-blue-50/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-blue-500" />
+              <span className="font-medium">Total Workout Time:</span>
+            </div>
+            <span className="text-blue-600 font-bold">{totalTime} min</span>
+          </div>
+        </div>
+
         {/* Preview Section */}
         {workout.exercises.length > 0 && (
           <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-white/50">
@@ -371,7 +390,7 @@ export default function TabataWorkout() {
               <p className="font-medium text-gray-900">{workout.name || "Unnamed Workout"}</p>
               <p>{workout.rounds} rounds of:</p>
               <p className="text-sm italic">
-                {workout.workInterval}s work / {workout.restInterval}s rest
+                {workout.workTime}s work / {workout.restTime}s rest
               </p>
               {workout.exercises.map((exercise, index) => (
                 <p key={exercise.id}>

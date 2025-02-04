@@ -5,6 +5,7 @@ import { Play, Pause, XCircle, ChevronLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import WorkoutSummary from "@/app/components/WorkoutSummary"
+import WorkoutCountdown from "@/app/components/WorkoutCountdown"
 
 interface Exercise {
   id: string
@@ -21,17 +22,21 @@ interface AmrapWorkout {
   name: string
   timeCap: number
   exercises: Exercise[]
+  timer: number
 }
 
 export default function AmrapSession() {
   const router = useRouter()
   const [isRunning, setIsRunning] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const [currentExercise, setCurrentExercise] = useState(0)
   const [timeRemaining, setTimeRemaining] = useState(0)
   const [workout, setWorkout] = useState<AmrapWorkout | null>(null)
   const [hasAnnouncedHalfway, setHasAnnouncedHalfway] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [completedAt, setCompletedAt] = useState<Date | null>(null)
   const [totalTime, setTotalTime] = useState(0)
+  const [showCountdown, setShowCountdown] = useState(false)
 
   // Speech synthesis function with enhanced male voice
   const speak = (text: string) => {
@@ -72,52 +77,83 @@ export default function AmrapSession() {
     }
   }
 
+  // Scroll to top on mount
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
   // Load workout data on mount
   useEffect(() => {
     const savedWorkout = localStorage.getItem('currentAmrapWorkout')
     if (savedWorkout) {
       const parsedWorkout = JSON.parse(savedWorkout)
       setWorkout(parsedWorkout)
-      setTimeRemaining(parsedWorkout.timeCap * 60) // Convert minutes to seconds
+      setTimeRemaining(parsedWorkout.timeCap * 60)
     } else {
       router.push('/custom-workout/amrap')
     }
   }, [router])
-
-  // Update timer logic to track total time and handle completion
-  useEffect(() => {
-    let interval: NodeJS.Timeout
-
-    if (isRunning && timeRemaining >= 0) {
-      interval = setInterval(() => {
-        // Announce before updating the timer
-        if (timeRemaining === 3) speak("3")
-        if (timeRemaining === 2) speak("2")
-        if (timeRemaining === 1) speak("1")
-        
-        // Check for halfway point
-        if (workout && !hasAnnouncedHalfway && timeRemaining === Math.floor(workout.timeCap * 30)) {
-          speak("Half way")
-          setHasAnnouncedHalfway(true)
-        }
-
-        if (timeRemaining === 0) {
-          handleComplete()
-        } else {
-          setTimeRemaining(prev => prev - 1)
-          setTotalTime(prev => prev + 1)
-        }
-      }, 1000)
-    }
-
-    return () => clearInterval(interval)
-  }, [isRunning, timeRemaining, workout, hasAnnouncedHalfway])
 
   const handleComplete = () => {
     setIsRunning(false)
     setCompletedAt(new Date())
     speak("Well Done")
     setShowSummary(true)
+  }
+
+  // Add beep function with correct audio file path
+  const beep = () => {
+    const audio = new Audio('/beep.mp3')  // Contains all 3 beeps
+    audio.volume = 0.5  // Adjust volume as needed
+    audio.play().catch(error => console.error('Error playing beep:', error))
+  }
+
+  // Timer logic
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+
+    if (isRunning && !isPaused && workout) {
+      interval = setInterval(() => {
+        setTimeRemaining(prevTime => {
+          const newTime = prevTime - 1
+
+          // Announce halfway through workout
+          if (newTime === Math.floor(workout.timeCap * 60 / 2)) {
+            speak("Half way")
+          }
+
+          // Announce 10 seconds remaining
+          if (newTime === 10) {
+            speak("10 seconds remaining")
+          }
+
+          // Handle workout completion
+          if (newTime <= 0) {
+            handleComplete()
+            return 0
+          }
+
+          return newTime
+        })
+      }, 1000)
+    }
+
+    return () => clearInterval(interval)
+  }, [isRunning, isPaused, workout, handleComplete])
+
+  // Start workout with countdown
+  const startWorkout = () => {
+    if (isRunning) {
+      setIsRunning(false)
+      setIsPaused(true)
+    } else {
+      if (isPaused) {
+        setIsRunning(true)
+        setIsPaused(false)
+      } else {
+        setShowCountdown(true)
+      }
+    }
   }
 
   const handleSave = async () => {
@@ -149,28 +185,6 @@ export default function AmrapSession() {
     setShowSummary(false)
   }
 
-  // Update reset timer to handle completion
-  const resetTimer = () => {
-    window.speechSynthesis.cancel()
-    if (isRunning || totalTime > 0) {
-      handleComplete()
-    }
-    setIsRunning(false)
-    setTimeRemaining(workout ? workout.timeCap * 60 : 0)
-    setHasAnnouncedHalfway(false)
-    setTotalTime(0)
-  }
-
-  // Start workout announcement
-  const toggleTimer = () => {
-    if (!isRunning) {
-      if (timeRemaining === (workout?.timeCap || 0) * 60) {
-        speak("Let's Go")
-      }
-    }
-    setIsRunning(!isRunning)
-  }
-
   // Format time to mm:ss
   const formatTime = (timeInSeconds: number) => {
     const minutes = Math.floor(timeInSeconds / 60)
@@ -197,10 +211,11 @@ export default function AmrapSession() {
             Exit Workout
           </Link>
           <button
-            onClick={resetTimer}
-            className="text-red-500 hover:text-red-600 transition-colors"
+            onClick={handleComplete}
+            className="flex items-center text-red-500 hover:text-red-600 transition-colors"
           >
-            <XCircle className="w-6 h-6" />
+            <XCircle className="w-5 h-5 mr-1" />
+            End Workout
           </button>
         </div>
 
@@ -210,27 +225,39 @@ export default function AmrapSession() {
         {/* Timer Display */}
         <div className="text-center mb-8">
           <div className={`text-6xl font-mono font-bold mb-4 ${
-            timeRemaining <= 60 ? 'text-red-500' : ''
+            timeRemaining <= 10 ? 'text-red-500' : ''
           }`}>
-            {formatTime(timeRemaining)}
-          </div>
-          <button
-            onClick={toggleTimer}
-            className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
-            disabled={timeRemaining === 0}
-          >
-            {isRunning ? (
-              <>
-                <Pause className="w-5 h-5" />
-                Pause
-              </>
+            {showCountdown ? (
+              <WorkoutCountdown 
+                onComplete={() => {
+                  setShowCountdown(false)
+                  setIsRunning(true)
+                }}
+                onStart={() => {
+                  setIsRunning(false)
+                  setIsPaused(false)
+                }}
+              />
             ) : (
-              <>
-                <Play className="w-5 h-5" />
-                {timeRemaining === workout.timeCap * 60 ? 'Start' : 'Resume'}
-              </>
+              formatTime(timeRemaining)
             )}
-          </button>
+          </div>
+          <div className="flex justify-center gap-4">
+            <button
+              onClick={startWorkout}
+              className="px-6 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+            >
+              {isRunning ? 'Pause' : isPaused ? 'Resume' : 'Start'}
+            </button>
+          </div>
+        </div>
+
+        {/* Current Exercise Display */}
+        <div className="bg-white/50 rounded-lg border border-gray-200 p-6">
+          <h2 className="text-xl font-semibold mb-4">Current Exercise:</h2>
+          <div className="text-lg">
+            {workout?.exercises[currentExercise]?.name}
+          </div>
         </div>
 
         {/* Workout Details */}

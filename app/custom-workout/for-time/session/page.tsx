@@ -5,6 +5,7 @@ import { Play, Pause, XCircle, ChevronLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import WorkoutSummary from "@/app/components/WorkoutSummary"
+import WorkoutCountdown from "@/app/components/WorkoutCountdown"
 
 interface Exercise {
   id: string
@@ -26,11 +27,13 @@ interface ForTimeWorkout {
 export default function ForTimeSession() {
   const router = useRouter()
   const [isRunning, setIsRunning] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
   const [time, setTime] = useState(0)
   const [workout, setWorkout] = useState<ForTimeWorkout | null>(null)
   const [hasAnnouncedStart, setHasAnnouncedStart] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [completedAt, setCompletedAt] = useState<Date | null>(null)
+  const [showCountdown, setShowCountdown] = useState(false)
 
   // Speech synthesis function with enhanced male voice
   const speak = (text: string) => {
@@ -120,16 +123,17 @@ export default function ForTimeSession() {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
   }
 
-  const toggleTimer = () => {
+  const startWorkout = () => {
     if (isRunning) {
-      speak("Paused")
-    } else if (time === 0) {
-      // Will trigger start announcement in the effect
-      setHasAnnouncedStart(false)
+      setIsRunning(false)
+      setIsPaused(true)
+    } else if (isPaused) {
+      setIsRunning(true)
+      setIsPaused(false)
     } else {
-      speak("Resuming")
+      // Only show countdown when starting fresh
+      setShowCountdown(true)
     }
-    setIsRunning(!isRunning)
   }
 
   const handleComplete = () => {
@@ -172,18 +176,6 @@ export default function ForTimeSession() {
     setShowSummary(false)
   }
 
-  // Replace the resetTimer function with handleComplete
-  const resetTimer = () => {
-    if (time > 0) {
-      handleComplete()
-    } else {
-      window.speechSynthesis.cancel()
-      setIsRunning(false)
-      setTime(0)
-      setHasAnnouncedStart(false)
-    }
-  }
-
   // Don't render until workout is loaded
   if (!workout) {
     return null
@@ -206,10 +198,10 @@ export default function ForTimeSession() {
             Exit Workout
           </Link>
           <button
-            onClick={resetTimer}
-            className="text-red-500 hover:text-red-600 transition-colors"
+            onClick={handleComplete}
+            className="flex items-center text-red-500 hover:text-red-600 transition-colors"
           >
-            <XCircle className="w-6 h-6" />
+            End Workout
           </button>
         </div>
 
@@ -218,9 +210,25 @@ export default function ForTimeSession() {
 
         {/* Timer Display */}
         <div className="text-center mb-8">
-          <div className="text-6xl font-mono font-bold mb-4">{formatTime(time)}</div>
+          <div className="text-6xl font-mono font-bold mb-4">
+            {showCountdown ? (
+              <WorkoutCountdown 
+                onComplete={() => {
+                  setShowCountdown(false)
+                  setIsRunning(true)
+                  setHasAnnouncedStart(true)
+                }}
+                onStart={() => {
+                  setIsRunning(false)
+                  setIsPaused(false)
+                }}
+              />
+            ) : (
+              formatTime(time)
+            )}
+          </div>
           <button
-            onClick={toggleTimer}
+            onClick={startWorkout}
             className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
           >
             {isRunning ? (
@@ -231,7 +239,7 @@ export default function ForTimeSession() {
             ) : (
               <>
                 <Play className="w-5 h-5" />
-                {time === 0 ? 'Start' : 'Resume'}
+                {isPaused ? 'Resume' : 'Start'}
               </>
             )}
           </button>
@@ -263,7 +271,7 @@ export default function ForTimeSession() {
           </div>
         </div>
 
-        {/* Add WorkoutSummary component */}
+        {/* WorkoutSummary component */}
         <WorkoutSummary
           isOpen={showSummary}
           onClose={() => setShowSummary(false)}

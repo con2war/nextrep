@@ -5,6 +5,7 @@ import { Play, Pause, XCircle, ChevronLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import WorkoutSummary from "@/app/components/WorkoutSummary"
+import WorkoutCountdown from "@/app/components/WorkoutCountdown"
 
 interface Exercise {
   id: string
@@ -19,21 +20,22 @@ interface Exercise {
 
 interface EmomWorkout {
   name: string
-  intervalTime: number // This will always be in seconds in the session
+  intervalTime: number
   sets: number
   exercises: Exercise[]
 }
 
 export default function EmomSession() {
   const router = useRouter()
+  const [workout, setWorkout] = useState<EmomWorkout | null>(null)
   const [isRunning, setIsRunning] = useState(false)
-  const [timeRemaining, setTimeRemaining] = useState(0)
+  const [isPaused, setIsPaused] = useState(false)
   const [currentRound, setCurrentRound] = useState(1)
   const [currentExercise, setCurrentExercise] = useState(0)
-  const [workout, setWorkout] = useState<EmomWorkout | null>(null)
+  const [timeRemaining, setTimeRemaining] = useState(0)
+  const [showCountdown, setShowCountdown] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [completedAt, setCompletedAt] = useState<Date | null>(null)
-  const [totalTime, setTotalTime] = useState(0)
 
   // Speech synthesis function with enhanced male voice
   const speak = (text: string) => {
@@ -74,6 +76,20 @@ export default function EmomSession() {
     }
   }
 
+  // Updated beep function
+  const beep = () => {
+    const audio = new Audio('/beep.mp3')  // Create a short beep sound file
+    audio.volume = 0.5  // Adjust volume as needed
+    audio.play().catch(error => console.error('Error playing beep:', error))
+  }
+
+  const handleComplete = () => {
+    setIsRunning(false)
+    setCompletedAt(new Date())
+    speak("Well Done")
+    setShowSummary(true)
+  }
+
   // Load workout data on mount
   useEffect(() => {
     const savedWorkout = localStorage.getItem('currentEmomWorkout')
@@ -86,91 +102,78 @@ export default function EmomSession() {
     }
   }, [router])
 
-  // Update timer logic to track total time and handle completion
+  // Timer logic
   useEffect(() => {
     let interval: NodeJS.Timeout
 
-    if (isRunning && timeRemaining >= 0) {
+    if (isRunning && !isPaused && workout) {
       interval = setInterval(() => {
-        // Announce before updating the timer
-        if (timeRemaining === 3) speak("3")
-        if (timeRemaining === 2) speak("2")
-        if (timeRemaining === 1) speak("1")
-        
-        if (timeRemaining === 0) {
-          if (currentExercise < (workout?.exercises.length || 0) - 1) {
-            setCurrentExercise(prev => prev + 1)
-            speak("Next")
-            setTimeRemaining(workout?.intervalTime || 0)
-            setTotalTime(prev => prev + 1)
-          } else {
-            if (currentRound < (workout?.sets || 0)) {
-              setCurrentRound(prev => prev + 1)
-              setCurrentExercise(0)
-              speak("Next Round")
-              setTimeRemaining(workout?.intervalTime || 0)
-              setTotalTime(prev => prev + 1)
-            } else {
-              handleComplete()
-            }
+        setTimeRemaining(prevTime => {
+          const newTime = prevTime - 1
+
+          // Announce halfway through interval
+          if (newTime === Math.floor(workout.intervalTime / 2)) {
+            speak("Half way")
           }
-        } else {
-          setTimeRemaining(prev => prev - 1)
-          setTotalTime(prev => prev + 1)
-        }
+
+          // Announce 10 seconds remaining
+          if (newTime === 10) {
+            speak("10 seconds remaining")
+          }
+
+          // Play 3-beep countdown sound at 3 seconds remaining
+          if (newTime === 3) {
+            window.speechSynthesis.cancel() // Cancel any ongoing speech
+            beep()
+          }
+
+          // When interval completes
+          if (newTime <= 0) {
+            // Check if current round is the last round
+            if (currentRound === workout.sets) {
+              handleComplete()
+              return 0
+            }
+
+            // Increment round by 1
+            const nextRound = currentRound + 1
+            setCurrentRound(nextRound)
+
+            // Update exercise
+            const nextExerciseIndex = currentExercise + 1 >= workout.exercises.length ? 0 : currentExercise + 1
+            setCurrentExercise(nextExerciseIndex)
+
+            // Announce next exercise with 1 second delay
+            setTimeout(() => {
+              if (workout.exercises[nextExerciseIndex]) {
+                speak(`Next up: ${workout.exercises[nextExerciseIndex].name}`)
+              }
+            }, 1000)
+
+            // Reset interval timer
+            return workout.intervalTime
+          }
+
+          return newTime
+        })
       }, 1000)
     }
 
     return () => clearInterval(interval)
-  }, [isRunning, timeRemaining, currentExercise, currentRound, workout])
+  }, [isRunning, isPaused, workout, currentRound, currentExercise, handleComplete])
 
-  const handleComplete = () => {
-    setIsRunning(false)
-    setCompletedAt(new Date())
-    speak("Well Done")
-    setShowSummary(true)
-  }
-
-  const handleSave = async () => {
-    // TODO: Implement save functionality
-    console.log('Saving workout...')
-    setShowSummary(false)
-  }
-
-  const handleShare = async () => {
-    try {
-      const shareData = {
-        title: workout?.name || 'EMOM Workout',
-        text: `I completed ${workout?.name} - ${workout?.sets} sets of ${workout?.exercises.length} exercises!`,
-        url: window.location.href
-      }
-      
-      if (navigator.share) {
-        await navigator.share(shareData)
-      } else {
-        // Fallback to copying to clipboard
-        await navigator.clipboard.writeText(
-          `${shareData.title}\n${shareData.text}\n${shareData.url}`
-        )
-        alert('Workout details copied to clipboard!')
-      }
-    } catch (error) {
-      console.error('Error sharing:', error)
+  // Start workout with countdown
+  const startWorkout = () => {
+    if (isRunning) {
+      setIsRunning(false)
+      setIsPaused(true)
+    } else if (isPaused) {
+      setIsRunning(true)
+      setIsPaused(false)
+    } else {
+      // Only show countdown when starting fresh
+      setShowCountdown(true)
     }
-    setShowSummary(false)
-  }
-
-  // Update reset timer to handle completion
-  const resetTimer = () => {
-    window.speechSynthesis.cancel()
-    if (isRunning || totalTime > 0) {
-      handleComplete()
-    }
-    setIsRunning(false)
-    setTimeRemaining(workout ? workout.intervalTime : 0)
-    setCurrentRound(1)
-    setCurrentExercise(0)
-    setTotalTime(0)
   }
 
   // Format time to mm:ss
@@ -180,23 +183,10 @@ export default function EmomSession() {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
   }
 
-  // Start workout announcement
-  const toggleTimer = () => {
-    if (!isRunning) {
-      if (currentRound === 1 && currentExercise === 0 && timeRemaining === workout?.intervalTime) {
-        speak("Let's Go")
-      }
-    }
-    setIsRunning(!isRunning)
-  }
-
   // Don't render until workout is loaded
   if (!workout) {
     return null
   }
-
-  const totalRounds = workout.sets * workout.exercises.length
-  const currentRoundTotal = (currentRound - 1) * workout.exercises.length + currentExercise + 1
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -212,47 +202,58 @@ export default function EmomSession() {
             Exit Workout
           </Link>
           <button
-            onClick={resetTimer}
-            className="text-red-500 hover:text-red-600 transition-colors"
+            onClick={handleComplete}
+            className="flex items-center text-red-500 hover:text-red-600 transition-colors"
           >
-            <XCircle className="w-6 h-6" />
+            <XCircle className="w-5 h-5 mr-1" />
+            End Workout
           </button>
         </div>
 
         {/* Workout Name */}
         <h1 className="text-3xl font-bold mb-4 text-center">{workout.name}</h1>
 
-        {/* Round Counter */}
-        <div className="text-center mb-4">
-          <span className="text-xl font-semibold text-gray-600">
-            Round {currentRoundTotal}/{totalRounds}
-          </span>
-        </div>
-
         {/* Timer Display */}
         <div className="text-center mb-8">
           <div className={`text-6xl font-mono font-bold mb-4 ${
             timeRemaining <= 10 ? 'text-red-500' : ''
           }`}>
-            {formatTime(timeRemaining)}
-          </div>
-          <button
-            onClick={toggleTimer}
-            className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
-            disabled={currentRoundTotal > totalRounds}
-          >
-            {isRunning ? (
-              <>
-                <Pause className="w-5 h-5" />
-                Pause
-              </>
+            {showCountdown ? (
+              <WorkoutCountdown 
+                onComplete={() => {
+                  setShowCountdown(false)
+                  setIsRunning(true)
+                }}
+                onStart={() => {
+                  setIsRunning(false)
+                  setIsPaused(false)
+                }}
+              />
             ) : (
-              <>
-                <Play className="w-5 h-5" />
-                {timeRemaining === workout.intervalTime ? 'Start' : 'Resume'}
-              </>
+              formatTime(timeRemaining)
             )}
-          </button>
+          </div>
+          <div className="flex justify-center gap-4">
+            <button
+              onClick={startWorkout}
+              className="px-6 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+            >
+              {isRunning ? 'Pause' : isPaused ? 'Resume' : 'Start'}
+            </button>
+          </div>
+        </div>
+
+        {/* Round and Exercise Display */}
+        <div className="bg-white/50 rounded-lg border border-gray-200 p-6 mb-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Round {currentRound} of {workout?.sets}</h2>
+            <span className="text-sm text-gray-500">
+              Exercise {currentExercise + 1} of {workout?.exercises.length}
+            </span>
+          </div>
+          <div className="text-lg">
+            {workout?.exercises[currentExercise]?.name}
+          </div>
         </div>
 
         {/* Workout Details */}
@@ -282,14 +283,39 @@ export default function EmomSession() {
         <WorkoutSummary
           isOpen={showSummary}
           onClose={() => setShowSummary(false)}
-          onSave={handleSave}
-          onShare={handleShare}
+          onSave={() => {
+            // TODO: Implement save functionality
+            console.log('Saving workout...')
+            setShowSummary(false)
+          }}
+          onShare={async () => {
+            try {
+              const shareData = {
+                title: workout?.name || 'EMOM Workout',
+                text: `I completed ${workout?.name} - ${workout?.sets} sets of ${workout?.exercises.length} exercises!`,
+                url: window.location.href
+              }
+              
+              if (navigator.share) {
+                await navigator.share(shareData)
+              } else {
+                // Fallback to copying to clipboard
+                await navigator.clipboard.writeText(
+                  `${shareData.title}\n${shareData.text}\n${shareData.url}`
+                )
+                alert('Workout details copied to clipboard!')
+              }
+            } catch (error) {
+              console.error('Error sharing:', error)
+            }
+            setShowSummary(false)
+          }}
           workout={{
             name: workout.name,
             type: 'EMOM',
             exercises: workout.exercises
           }}
-          duration={totalTime}
+          duration={timeRemaining}
           completedAt={completedAt || new Date()}
         />
       </main>

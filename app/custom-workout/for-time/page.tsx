@@ -22,6 +22,7 @@ interface Exercise {
 
 interface ForTimeWorkout {
   name: string
+  timeLimit?: number
   rounds: number
   exercises: Exercise[]
 }
@@ -30,12 +31,13 @@ export default function ForTimeWorkout() {
   const router = useRouter()
   const [workout, setWorkout] = useState<ForTimeWorkout>({
     name: "",
+    timeLimit: undefined,
     rounds: 1,
     exercises: []
   })
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [suggestions, setSuggestions] = useState<GymExercise[]>([])
-  const [currentExercise, setCurrentExercise] = useState("")
+  const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null)
   const [exercises, setExercises] = useState<GymExercise[]>([])
   const [selectedExercise, setSelectedExercise] = useState<GymExercise | null>(null)
   const suggestionRef = useRef<HTMLDivElement>(null)
@@ -49,7 +51,7 @@ export default function ForTimeWorkout() {
   }, [])
 
   const handleExerciseInput = (value: string, exerciseId: string) => {
-    setCurrentExercise(value)
+    setCurrentExerciseId(exerciseId)
     updateExercise(exerciseId, { name: value })
     
     if (value.length >= 2) {
@@ -73,26 +75,16 @@ export default function ForTimeWorkout() {
     }
   }
 
-  const addExercise = (exercise?: GymExercise) => {
-    if (exercise || currentExercise.trim()) {
-      setWorkout(prev => ({
-        ...prev,
-        exercises: [
-          ...prev.exercises,
-          {
-            id: Date.now().toString(),
-            name: exercise ? exercise.name : currentExercise.trim(),
-            metric: 'reps',
-            difficulty: exercise?.difficulty,
-            equipment: exercise?.equipment,
-            muscle: exercise?.muscle
-          }
-        ]
-      }))
-      setCurrentExercise("")
-      setSelectedExercise(null)
-      setShowSuggestions(false)
-    }
+  const addExercise = () => {
+    setWorkout({
+      ...workout,
+      exercises: [...workout.exercises, {
+        id: Date.now().toString(),
+        name: '',
+        reps: 10,
+        metric: 'reps'
+      }]
+    })
   }
 
   const updateExercise = (exerciseId: string, updates: Partial<Exercise>) => {
@@ -126,10 +118,29 @@ export default function ForTimeWorkout() {
   }
 
   const handleSuggestionClick = (selectedName: string, exerciseId: string) => {
-    console.log('Selected:', selectedName) // Debug log
+    console.log('Selecting exercise:', selectedName) // Debug log
     updateExercise(exerciseId, { name: selectedName })
     setShowSuggestions(false)
+    setCurrentExerciseId(null)
   }
+
+  // Handle click outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const suggestionsContainer = document.querySelector('.suggestions-container')
+      const exerciseInput = document.querySelector('.exercise-input')
+
+      if (suggestionsContainer && exerciseInput && 
+        !suggestionsContainer.contains(event.target as Node) &&
+        !exerciseInput.contains(event.target as Node)) {
+        setShowSuggestions(false)
+        setCurrentExerciseId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -179,186 +190,133 @@ export default function ForTimeWorkout() {
           </div>
         </div>
 
-        {/* Exercise Input with Enhanced Autocomplete */}
-        <div className="relative mb-6">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={currentExercise}
-              onChange={(e) => handleExerciseInput(e.target.value, '')}
-              onKeyDown={(e) => handleKeyDown(e, '')}
-              placeholder="Search exercises..."
-              className="flex-1 p-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-              autoComplete="off"
-            />
+        {/* Exercise List */}
+        <div className="space-y-4">
+            {workout.exercises.map((exercise, index) => (
+                <div key={exercise.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
+                        <button
+                            onClick={() => removeExercise(exercise.id)}
+                            className="text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    {/* Exercise Input with Autocomplete */}
+                    <div className="relative mb-3">
+                        <input
+                            type="text"
+                            placeholder="Exercise name"
+                            value={exercise.name}
+                            onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
+                            onFocus={() => setCurrentExerciseId(exercise.id)}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 exercise-input"
+                        />
+                        
+                        {showSuggestions && currentExerciseId === exercise.id && (
+                            <div 
+                                className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container"
+                            >
+                                {suggestions.map((suggestion, idx) => (
+                                    <div
+                                        key={idx}
+                                        onClick={() => handleSuggestionClick(suggestion.name, exercise.id)}
+                                        className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0 cursor-pointer"
+                                    >
+                                        <div className="font-medium">{suggestion.name}</div>
+                                        <div className="text-sm text-gray-500 flex items-center gap-2">
+                                            <span>{suggestion.muscle}</span>
+                                            {suggestion.difficulty && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span>{suggestion.difficulty}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Exercise Details */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                        <select
+                            value={exercise.metric}
+                            onChange={(e) => updateExercise(exercise.id, {
+                                metric: e.target.value as 'reps' | 'distance' | 'calories'
+                            })}
+                            className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white"
+                        >
+                            <option value="reps">Reps</option>
+                            <option value="distance">Distance (m)</option>
+                            <option value="calories">Calories</option>
+                        </select>
+                        <input
+                            type="number"
+                            min="0"
+                            placeholder="Amount"
+                            value={exercise[exercise.metric] || ''}
+                            onChange={(e) => {
+                                updateExercise(exercise.id, {
+                                    [exercise.metric]: parseInt(e.target.value) || 0
+                                })
+                            }}
+                            className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                        />
+                    </div>
+
+                    {/* Additional Exercise Details */}
+                    <div className="space-y-3">
+                        <input
+                            type="number"
+                            placeholder="Weight (kg) - Optional"
+                            value={exercise.weight || ''}
+                            onChange={(e) => updateExercise(exercise.id, { weight: parseInt(e.target.value) })}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                        />
+                        <input
+                            type="text"
+                            placeholder="Notes (optional)"
+                            value={exercise.notes || ''}
+                            onChange={(e) => updateExercise(exercise.id, { notes: e.target.value })}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                        />
+                    </div>
+                </div>
+            ))}
+
+            {/* Add Exercise Button */}
             <button
-              onClick={() => addExercise()}
-              className="p-3 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all"
+                onClick={addExercise}
+                className="w-full p-3 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/5 transition-all flex items-center justify-center gap-2"
             >
-              <Plus className="w-6 h-6 text-gray-600" />
+                <Plus className="w-5 h-5" />
+                Add Exercise
             </button>
-          </div>
-
-          {/* Enhanced Suggestions Dropdown */}
-          {showSuggestions && (
-            <div 
-              ref={suggestionRef}
-              className="absolute z-10 left-0 right-0 mt-1 bg-white rounded-lg border border-gray-200 shadow-lg max-h-80 overflow-y-auto"
-            >
-              {suggestions.map((exercise, index) => (
-                <button
-                  key={index}
-                  onClick={() => {
-                    handleExerciseInput(exercise.name!, '')
-                  }}
-                  className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
-                >
-                  <div className="font-medium">{exercise.name}</div>
-                  <div className="text-sm text-gray-500 flex items-center gap-2">
-                    <span>{exercise.muscle}</span>
-                    {exercise.difficulty && (
-                      <>
-                        <span>•</span>
-                        <span>{exercise.difficulty}</span>
-                      </>
-                    )}
-                    {exercise.equipment && (
-                      <>
-                        <span>•</span>
-                        <span>{exercise.equipment}</span>
-                      </>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Exercise List with Details */}
-        <div className="space-y-2">
-          {workout.exercises.map((exercise, index) => (
-            <div
-              key={exercise.id}
-              className="bg-white p-4 rounded-xl border border-gray-200 space-y-3"
-            >
-              {/* Exercise Header */}
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{exercise.name}</span>
-                <button
-                  onClick={() => removeExercise(exercise.id)}
-                  className="text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Exercise Details */}
-              {exercise.muscle && (
-                <div className="text-sm text-gray-500 flex items-center gap-2">
-                  <span>{exercise.muscle}</span>
-                  {exercise.difficulty && (
-                    <>
-                      <span>•</span>
-                      <span>{exercise.difficulty}</span>
-                    </>
-                  )}
-                  {exercise.equipment && (
-                    <>
-                      <span>•</span>
-                      <span>{exercise.equipment}</span>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Metric Selection and Input */}
-              <div className="flex gap-4 items-center">
-                <select
-                  value={exercise.metric}
-                  onChange={(e) => updateExercise(exercise.id, { 
-                    metric: e.target.value as 'reps' | 'distance' | 'calories' 
-                  })}
-                  className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="reps">Reps</option>
-                  <option value="distance">Distance</option>
-                  <option value="calories">Calories</option>
-                </select>
-
-                <div className="flex-1">
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder={`Enter ${exercise.metric}`}
-                    value={
-                      exercise.metric === 'reps' ? exercise.reps || '' :
-                      exercise.metric === 'distance' ? exercise.distance || '' :
-                      exercise.calories || ''
-                    }
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value) || 0
-                      const updates = {
-                        reps: undefined,
-                        distance: undefined,
-                        calories: undefined,
-                        [exercise.metric]: value
-                      }
-                      updateExercise(exercise.id, updates)
-                    }}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Weight Input */}
-              <div className="relative">
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="Weight (optional)"
-                  value={exercise.weight || ''}
-                  onChange={(e) => updateExercise(exercise.id, { 
-                    weight: parseInt(e.target.value) || 0 
-                  })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 pr-12 text-sm"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
-                  kg
-                </span>
-              </div>
-
-              {/* Optional Notes */}
-              <input
-                type="text"
-                placeholder="Add notes (optional)"
-                value={exercise.notes || ''}
-                onChange={(e) => updateExercise(exercise.id, { notes: e.target.value })}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-          ))}
         </div>
 
         {/* Updated Preview Section */}
         {workout.exercises.length > 0 && (
-          <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-white/50">
-            <h2 className="text-lg font-medium mb-4">Workout Preview</h2>
-            <div className="space-y-2 text-gray-600">
-              <p className="font-medium text-gray-900">{workout.name || "Unnamed Workout"}</p>
-              <p>{workout.rounds > 1 ? `${workout.rounds} Rounds for Time:` : "For Time:"}</p>
-              {workout.exercises.map((exercise, index) => (
-                <p key={exercise.id}>
-                  {exercise.metric === 'reps' && exercise.reps ? `${exercise.reps} reps` :
-                   exercise.metric === 'distance' && exercise.distance ? `${exercise.distance}m` :
-                   exercise.metric === 'calories' && exercise.calories ? `${exercise.calories} cals`
-                   : ''} of {exercise.name}
-                  {exercise.weight ? ` (${exercise.weight}kg)` : ""}
-                  {exercise.notes ? ` - ${exercise.notes}` : ""}
-                </p>
-              ))}
+            <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-white/50">
+                <h2 className="text-lg font-medium mb-4">Workout Preview</h2>
+                <div className="space-y-2 text-gray-600">
+                    <p className="font-medium text-gray-900">{workout.name || "Unnamed Workout"}</p>
+                    <p>{workout.rounds > 1 ? `${workout.rounds} Rounds for Time:` : "For Time:"}</p>
+                    {workout.exercises.map((exercise, index) => (
+                        <p key={exercise.id}>
+                            {exercise.metric === 'reps' && exercise.reps ? `${exercise.reps} reps` :
+                            exercise.metric === 'distance' && exercise.distance ? `${exercise.distance}m` :
+                            exercise.metric === 'calories' && exercise.calories ? `${exercise.calories} cals`
+                            : ''} of {exercise.name}
+                            {exercise.weight ? ` (${exercise.weight}kg)` : ""}
+                            {exercise.notes ? ` - ${exercise.notes}` : ""}
+                        </p>
+                    ))}
+                </div>
             </div>
-          </div>
         )}
 
         {/* Fixed Bottom Action Bar */}

@@ -46,6 +46,7 @@ export default function EmomWorkout() {
     const [currentExercise, setCurrentExercise] = useState("")
     const [showSuggestions, setShowSuggestions] = useState(false)
     const [suggestions, setSuggestions] = useState<GymExercise[]>([])
+    const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null)
 
     // Calculate total workout time based on interval time and sets
     const totalTime = workout.intervalTime * workout.sets * workout.exercises.length
@@ -136,6 +137,7 @@ export default function EmomWorkout() {
     const handleExerciseInput = (value: string, exerciseId: string) => {
         // Update the exercise name as user types
         updateExercise(exerciseId, { name: value })
+        setCurrentExerciseId(exerciseId)
         
         // Show suggestions if we have 2 or more characters
         if (value.length >= 2) {
@@ -152,19 +154,31 @@ export default function EmomWorkout() {
         }
     }
 
-    // Super simple suggestion click handler - just update the exercise name
     const handleSuggestionClick = (selectedName: string, exerciseId: string) => {
-        console.log('Selected:', selectedName) // Debug log
         updateExercise(exerciseId, { name: selectedName })
         setShowSuggestions(false)
+        setCurrentExerciseId(null)
     }
 
-    // Handle keyboard events
-    const handleKeyDown = (event: React.KeyboardEvent) => {
-        if (event.key === 'Enter' || event.key === 'Escape') {
-            setShowSuggestions(false)
+    // Updated click outside handler
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            // Get the suggestions container
+            const suggestionsContainer = document.querySelector('.suggestions-container')
+            const exerciseInput = document.querySelector('.exercise-input')
+
+            // Check if click is outside both the suggestions and input
+            if (suggestionsContainer && exerciseInput && 
+                !suggestionsContainer.contains(event.target as Node) &&
+                !exerciseInput.contains(event.target as Node)) {
+                setShowSuggestions(false)
+                setCurrentExerciseId(null)
+            }
         }
-    }
+
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [])
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-24">
@@ -290,12 +304,14 @@ export default function EmomWorkout() {
                                         placeholder="Exercise name"
                                         value={exercise.name}
                                         onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
-                                        onKeyDown={handleKeyDown}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                        onFocus={() => setCurrentExerciseId(exercise.id)}
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 exercise-input"
                                     />
                                     
-                                    {showSuggestions && (
-                                        <div className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg">
+                                    {showSuggestions && currentExerciseId === exercise.id && (
+                                        <div 
+                                            className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container"
+                                        >
                                             {suggestions.map((suggestion, idx) => (
                                                 <div
                                                     key={idx}

@@ -8,20 +8,12 @@ import { useRouter } from "next/navigation"
 interface Exercise {
   id: string
   name: string
-  reps: number
+  reps?: number
   weight?: number
   distance?: number
   calories?: number
   notes?: string
   metric: 'reps' | 'distance' | 'calories'
-  muscle: string
-  difficulty?: string
-}
-
-interface AmrapWorkout {
-  name: string
-  timeCap: number // in minutes
-  exercises: Exercise[]
 }
 
 interface GymExercise {
@@ -33,17 +25,27 @@ interface GymExercise {
     description: string
 }
 
+interface AmrapWorkout {
+    name: string
+    timeCap: number
+    exercises: Exercise[]
+    timer: number
+}
+
 export default function AmrapWorkout() {
   const router = useRouter()
   const [workout, setWorkout] = useState<AmrapWorkout>({
     name: "",
-    timeCap: 20,
-    exercises: []
+    timeCap: 0,
+    exercises: [],
+    timer: 0
   })
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [currentExercise, setCurrentExercise] = useState('')
-  const [suggestions, setSuggestions] = useState<GymExercise[]>([])
+
+  // Exercise suggestion states
   const [exercises, setExercises] = useState<GymExercise[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [suggestions, setSuggestions] = useState<GymExercise[]>([])
+  const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null)
 
   const updateTimeCap = (value: string) => {
     const parsedValue = value === '' ? '' : parseInt(value)
@@ -68,23 +70,18 @@ export default function AmrapWorkout() {
         id: Date.now().toString(),
         name: '',
         reps: 10,
-        metric: 'reps',
-        muscle: '',
-        difficulty: ''
+        metric: 'reps'
       }]
     })
   }
 
   const updateExercise = (exerciseId: string, updates: Partial<Exercise>) => {
-    console.log('Updating exercise:', exerciseId, updates)
-    setWorkout(prev => ({
-      ...prev,
-      exercises: prev.exercises.map(exercise =>
-        exercise.id === exerciseId 
-          ? { ...exercise, ...updates }
-          : exercise
+    setWorkout({
+      ...workout,
+      exercises: workout.exercises.map(exercise =>
+        exercise.id === exerciseId ? { ...exercise, ...updates } : exercise
       )
-    }))
+    })
   }
 
   const removeExercise = (exerciseId: string) => {
@@ -95,8 +92,16 @@ export default function AmrapWorkout() {
   }
 
   const startWorkout = () => {
-    // Store the workout in localStorage before navigating
-    localStorage.setItem('currentAmrapWorkout', JSON.stringify(workout))
+    // Convert timeCap from minutes to seconds for the timer
+    const workoutToSave = {
+      ...workout,
+      timer: workout.timeCap * 60  // Convert minutes to seconds
+    }
+
+    // Store workout in localStorage
+    localStorage.setItem('currentAmrapWorkout', JSON.stringify(workoutToSave))
+
+    // Navigate to session page
     router.push('/custom-workout/amrap/session')
   }
 
@@ -111,6 +116,7 @@ export default function AmrapWorkout() {
   const handleExerciseInput = (value: string, exerciseId: string) => {
     // Update the exercise name as user types
     updateExercise(exerciseId, { name: value })
+    setCurrentExerciseId(exerciseId)
     
     // Show suggestions if we have 2 or more characters
     if (value.length >= 2) {
@@ -127,19 +133,30 @@ export default function AmrapWorkout() {
     }
   }
 
-  // Super simple suggestion click handler - just update the exercise name
   const handleSuggestionClick = (selectedName: string, exerciseId: string) => {
-    console.log('Selected:', selectedName) // Debug log
+    console.log('Selecting exercise:', selectedName) // Debug log
     updateExercise(exerciseId, { name: selectedName })
     setShowSuggestions(false)
+    setCurrentExerciseId(null)
   }
 
-  // Handle keyboard events
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' || event.key === 'Escape') {
-      setShowSuggestions(false)
+  // Handle click outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const suggestionsContainer = document.querySelector('.suggestions-container')
+      const exerciseInput = document.querySelector('.exercise-input')
+
+      if (suggestionsContainer && exerciseInput && 
+        !suggestionsContainer.contains(event.target as Node) &&
+        !exerciseInput.contains(event.target as Node)) {
+        setShowSuggestions(false)
+        setCurrentExerciseId(null)
+      }
     }
-  }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -219,58 +236,61 @@ export default function AmrapWorkout() {
           </div>
           {workout.exercises.map((exercise, index) => (
             <div key={exercise.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="flex items-center gap-4">
-                <span className="text-gray-500 font-medium">#{index + 1}</span>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Exercise name"
-                    value={exercise.name}
-                    onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
-                    onKeyDown={handleKeyDown}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                  />
-                  
-                  {showSuggestions && (
-                    <div className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg">
-                      {suggestions.map((suggestion, idx) => (
-                        <div
-                          key={idx}
-                          onClick={() => handleSuggestionClick(suggestion.name, exercise.id)}
-                          className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0 cursor-pointer"
-                        >
-                          <div className="font-medium">{suggestion.name}</div>
-                          <div className="text-sm text-gray-500 flex items-center gap-2">
-                            <span>{suggestion.muscle}</span>
-                            {suggestion.difficulty && (
-                              <>
-                                <span>•</span>
-                                <span>{suggestion.difficulty}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
                 <button
                   onClick={() => removeExercise(exercise.id)}
-                  className="text-red-500 hover:text-red-600"
+                  className="text-gray-400 hover:text-red-500 transition-colors"
                 >
-                  <Trash2 className="w-5 h-5" />
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-4 mb-3">
+
+              {/* Exercise Input with Autocomplete */}
+              <div className="relative mb-3">
+                <input
+                  type="text"
+                  placeholder="Exercise name"
+                  value={exercise.name}
+                  onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
+                  onFocus={() => setCurrentExerciseId(exercise.id)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 exercise-input"
+                />
+                
+                {showSuggestions && currentExerciseId === exercise.id && (
+                  <div 
+                    className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container"
+                  >
+                    {suggestions.map((suggestion, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => handleSuggestionClick(suggestion.name, exercise.id)}
+                        className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0 cursor-pointer"
+                      >
+                        <div className="font-medium">{suggestion.name}</div>
+                        <div className="text-sm text-gray-500 flex items-center gap-2">
+                          <span>{suggestion.muscle}</span>
+                          {suggestion.difficulty && (
+                            <>
+                              <span>•</span>
+                              <span>{suggestion.difficulty}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Exercise Details */}
+              <div className="grid grid-cols-2 gap-3 mb-3">
                 <select
                   value={exercise.metric}
-                  onChange={(e) => updateExercise(exercise.id, { 
-                    metric: e.target.value as 'reps' | 'distance' | 'calories',
-                    reps: undefined,
-                    distance: undefined,
-                    calories: undefined
+                  onChange={(e) => updateExercise(exercise.id, {
+                    metric: e.target.value as 'reps' | 'distance' | 'calories'
                   })}
-                  className="p-2 rounded border border-gray-200"
+                  className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white"
                 >
                   <option value="reps">Reps</option>
                   <option value="distance">Distance (m)</option>
@@ -279,37 +299,34 @@ export default function AmrapWorkout() {
                 <input
                   type="number"
                   min="0"
-                  placeholder={exercise.metric === 'reps' ? 'Number of reps' : 
-                             exercise.metric === 'distance' ? 'Distance in meters' : 
-                             'Calories to burn'}
-                  value={exercise.metric === 'reps' ? exercise.reps || '' :
-                         exercise.metric === 'distance' ? exercise.distance || '' :
-                         exercise.calories || ''}
+                  placeholder="Amount"
+                  value={exercise[exercise.metric] || ''}
                   onChange={(e) => {
-                    const value = parseInt(e.target.value) || 0
                     updateExercise(exercise.id, {
-                      [exercise.metric]: value
+                      [exercise.metric]: parseInt(e.target.value) || 0
                     })
                   }}
-                  className="w-full p-2 rounded border border-gray-200"
+                  className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>
-              <div>
-                <label className="block text-sm text-gray-500 mb-1">Weight (kg) - Optional</label>
+
+              {/* Additional Exercise Details */}
+              <div className="space-y-3">
                 <input
                   type="number"
+                  placeholder="Weight (kg) - Optional"
                   value={exercise.weight || ''}
                   onChange={(e) => updateExercise(exercise.id, { weight: parseInt(e.target.value) })}
-                  className="w-full p-2 rounded border border-gray-200"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+                <input
+                  type="text"
+                  placeholder="Notes (optional)"
+                  value={exercise.notes || ''}
+                  onChange={(e) => updateExercise(exercise.id, { notes: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>
-              <input
-                type="text"
-                placeholder="Notes (optional)"
-                value={exercise.notes || ''}
-                onChange={(e) => updateExercise(exercise.id, { notes: e.target.value })}
-                className="w-full p-2 rounded border border-gray-200"
-              />
             </div>
           ))}
           
@@ -342,22 +359,23 @@ export default function AmrapWorkout() {
           </div>
         )}
 
-        {/* Action Buttons - Updated positioning and spacing */}
+        {/* Action Buttons */}
         <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-200 p-4 z-50">
-            <div className="container max-w-md mx-auto grid grid-cols-2 gap-3">
-                <button className="px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 text-gray-600 hover:text-blue-600">
-                    <Save className="w-4 h-4" />
-                    Save
-                </button>
-                <button
-                    onClick={startWorkout}
-                    disabled={workout.exercises.length === 0}
-                    className="px-4 py-3 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    <Play className="w-4 h-4" />
-                    Start
-                </button>
-            </div>
+          <div className="max-w-2xl mx-auto flex gap-4">
+            <Link
+              href="/custom-workout"
+              className="flex-1 px-4 py-2 rounded-lg border border-gray-200 text-center hover:border-gray-300 transition-colors"
+            >
+              Cancel
+            </Link>
+            <button
+              onClick={startWorkout}
+              disabled={workout.exercises.length === 0 || !workout.timeCap}
+              className="flex-1 px-4 py-2 rounded-lg bg-blue-500 text-white disabled:bg-gray-300 hover:bg-blue-600 transition-colors"
+            >
+              Start Workout
+            </button>
+          </div>
         </div>
       </main>
     </div>
