@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Play, Pause, XCircle, ChevronLeft } from "lucide-react"
+import { Play, Pause, XCircle, ChevronLeft, Volume2, VolumeX } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import WorkoutSummary from "@/app/components/WorkoutSummary"
@@ -34,48 +34,98 @@ export default function ForTimeSession() {
   const [showSummary, setShowSummary] = useState(false)
   const [completedAt, setCompletedAt] = useState<Date | null>(null)
   const [showCountdown, setShowCountdown] = useState(false)
+  const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null)
+  const [audioInitialized, setAudioInitialized] = useState(false)
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true)
 
-  // Speech synthesis function with enhanced male voice
+  // Initialize beep sound on mount
+  useEffect(() => {
+    const audio = new Audio('/beep.mp3')
+    audio.volume = 0.5
+    audio.preload = 'auto'
+
+    // Add event listeners for debugging
+    audio.addEventListener('error', (e) => {
+      console.error('Audio loading error:', e)
+    })
+
+    audio.addEventListener('canplaythrough', () => {
+      console.log('Audio loaded successfully')
+    })
+
+    try {
+      audio.load()
+      setBeepSound(audio)
+    } catch (error) {
+      console.error('Error loading audio:', error)
+    }
+
+    // Cleanup
+    return () => {
+      audio.removeEventListener('error', () => {})
+      audio.removeEventListener('canplaythrough', () => {})
+    }
+  }, [])
+
+  // Test and initialize audio
+  const testAudio = () => {
+    if (isAudioEnabled) {
+      // Initialize beep
+      if (beepSound) {
+        beepSound.currentTime = 0
+        const playPromise = beepSound.play()
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              beepSound.pause()
+              beepSound.currentTime = 0
+              console.log('Beep sound tested successfully')
+            })
+            .catch(error => console.error('Beep test error:', error))
+        }
+      }
+
+      // Test speech synthesis
+      if ('speechSynthesis' in window) {
+        const testUtterance = new SpeechSynthesisUtterance("Audio check")
+        testUtterance.volume = 1.5
+        window.speechSynthesis.speak(testUtterance)
+      }
+    }
+  }
+
+  // Toggle audio state
+  const toggleAudio = () => {
+    setIsAudioEnabled(!isAudioEnabled)
+    if (!audioInitialized) {
+      testAudio()
+      setAudioInitialized(true)
+    }
+  }
+
+  // Update speak function to respect audio state
   const speak = (text: string) => {
-    if ('speechSynthesis' in window) {
+    if (isAudioEnabled && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(text)
-      
-      // Get available voices and wait if needed
-      let voices = window.speechSynthesis.getVoices()
-      if (voices.length === 0) {
-        // Some browsers need a moment to load voices
-        window.speechSynthesis.addEventListener('voiceschanged', () => {
-          voices = window.speechSynthesis.getVoices()
+      utterance.volume = 1.5
+      window.speechSynthesis.speak(utterance)
+    }
+  }
+
+  // Update beep function to respect audio state
+  const beep = () => {
+    if (isAudioEnabled && beepSound) {
+      beepSound.currentTime = 0
+      const playPromise = beepSound.play()
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('Error playing beep:', error)
+          setTimeout(() => {
+            beepSound.play().catch(e => console.error('Retry error:', e))
+          }, 100)
         })
       }
-
-      // Try to find a male voice (often indicated in the name or "gender" property)
-      const preferredVoice = voices.find(
-        voice => 
-          (voice.name.includes('Male') || 
-           voice.name.includes('Daniel') ||
-           voice.name.includes('David') ||
-           voice.name.includes('James')) &&
-          (voice.lang.includes('en-US') || voice.lang.includes('en-GB'))
-      )
-
-      if (preferredVoice) {
-        utterance.voice = preferredVoice
-      }
-
-      // Adjust for enthusiasm and lower tone
-      utterance.pitch = 1.1    // Lower pitch sounds more authoritative/motivational
-      utterance.rate = 1.2     // Slightly slower for clarity and impact
-      utterance.volume = 1.5 
-      
-      // Add emphasis to motivational phrases
-      if (text === "Let's Go" || text === "Well Done") {
-        utterance.pitch = 1.1   // Slightly higher pitch for excitement
-        utterance.rate = 1.2    // Faster for enthusiasm
-      }
-
-      window.speechSynthesis.speak(utterance)
     }
   }
 
@@ -216,7 +266,6 @@ export default function ForTimeSession() {
                 onComplete={() => {
                   setShowCountdown(false)
                   setIsRunning(true)
-                  setHasAnnouncedStart(true)
                 }}
                 onStart={() => {
                   setIsRunning(false)
@@ -227,22 +276,39 @@ export default function ForTimeSession() {
               formatTime(time)
             )}
           </div>
-          <button
-            onClick={startWorkout}
-            className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
-          >
-            {isRunning ? (
-              <>
-                <Pause className="w-5 h-5" />
-                Pause
-              </>
-            ) : (
-              <>
-                <Play className="w-5 h-5" />
-                {isPaused ? 'Resume' : 'Start'}
-              </>
-            )}
-          </button>
+          <div className="flex justify-center gap-4 items-center">
+            <button
+              onClick={startWorkout}
+              className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+            >
+              {isRunning ? (
+                <>
+                  <Pause className="w-5 h-5" />
+                  Pause
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5" />
+                  {isPaused ? 'Resume' : 'Start'}
+                </>
+              )}
+            </button>
+            <button
+              onClick={toggleAudio}
+              className={`p-2 rounded-lg ${
+                isAudioEnabled 
+                  ? 'bg-green-500 hover:bg-green-600' 
+                  : 'bg-red-500 hover:bg-red-600'
+              } text-white transition-colors`}
+              title={isAudioEnabled ? 'Disable Audio' : 'Enable Audio'}
+            >
+              {isAudioEnabled ? (
+                <Volume2 className="w-5 h-5" />
+              ) : (
+                <VolumeX className="w-5 h-5" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Workout Details */}

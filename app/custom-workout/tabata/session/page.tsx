@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Play, Pause, XCircle, ChevronLeft } from "lucide-react"
+import { Play, Pause, XCircle, ChevronLeft, Volume2, VolumeX } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import WorkoutSummary from "@/app/components/WorkoutSummary"
@@ -41,6 +41,9 @@ export default function TabataSession() {
   const [completedAt, setCompletedAt] = useState<Date | null>(null)
   const [totalTime, setTotalTime] = useState(0)
   const [showCountdown, setShowCountdown] = useState(false)
+  const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null)
+  const [audioInitialized, setAudioInitialized] = useState(false)
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true)
 
   // Load workout data on mount
   useEffect(() => {
@@ -55,18 +58,92 @@ export default function TabataSession() {
     }
   }, [router])
 
+  // Initialize beep sound on mount
+  useEffect(() => {
+    const audio = new Audio('/beep.mp3')
+    audio.volume = 0.5
+    audio.preload = 'auto'
+
+    // Add event listeners for debugging
+    audio.addEventListener('error', (e) => {
+      console.error('Audio loading error:', e)
+    })
+
+    audio.addEventListener('canplaythrough', () => {
+      console.log('Audio loaded successfully')
+    })
+
+    try {
+      audio.load()
+      setBeepSound(audio)
+    } catch (error) {
+      console.error('Error loading audio:', error)
+    }
+
+    // Cleanup
+    return () => {
+      audio.removeEventListener('error', () => {})
+      audio.removeEventListener('canplaythrough', () => {})
+    }
+  }, [])
+
+  // Test and initialize audio
+  const testAudio = () => {
+    if (isAudioEnabled) {
+      // Initialize beep
+      if (beepSound) {
+        beepSound.currentTime = 0
+        const playPromise = beepSound.play()
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              beepSound.pause()
+              beepSound.currentTime = 0
+              console.log('Beep sound tested successfully')
+            })
+            .catch(error => console.error('Beep test error:', error))
+        }
+      }
+
+      // Test speech synthesis
+      if ('speechSynthesis' in window) {
+        const testUtterance = new SpeechSynthesisUtterance("Audio check")
+        testUtterance.volume = 1.5
+        window.speechSynthesis.speak(testUtterance)
+      }
+    }
+  }
+
+  // Toggle audio state
+  const toggleAudio = () => {
+    setIsAudioEnabled(!isAudioEnabled)
+    if (!audioInitialized) {
+      testAudio()
+      setAudioInitialized(true)
+    }
+  }
+
+  // Update beep function to respect audio state
+  const beep = () => {
+    if (isAudioEnabled && beepSound) {
+      beepSound.currentTime = 0
+      const playPromise = beepSound.play()
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('Error playing beep:', error)
+          setTimeout(() => {
+            beepSound.play().catch(e => console.error('Retry error:', e))
+          }, 100)
+        })
+      }
+    }
+  }
+
   const handleComplete = () => {
     setIsRunning(false)
     setCompletedAt(new Date())
     speak("Well Done")
     setShowSummary(true)
-  }
-
-  // Add beep function
-  const beep = () => {
-    const audio = new Audio('/beep.mp3')  // Contains all 3 beeps
-    audio.volume = 0.5  // Adjust volume as needed
-    audio.play().catch(error => console.error('Error playing beep:', error))
   }
 
   // Timer logic
@@ -139,7 +216,7 @@ export default function TabataSession() {
 
   // Speech synthesis function with enhanced male voice
   const speak = (text: string) => {
-    if ('speechSynthesis' in window) {
+    if (isAudioEnabled && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(text)
       
@@ -279,10 +356,10 @@ export default function TabataSession() {
         {/* Timer Display */}
         <div className="text-center mb-8">
           <div className={`text-6xl font-mono font-bold mb-4 ${
-            timeRemaining <= 10 ? 'text-red-500' : ''
+            timeRemaining <= 3 ? 'text-red-500' : ''
           }`}>
             {showCountdown ? (
-              <WorkoutCountdown 
+              <WorkoutCountdown
                 onComplete={() => {
                   setShowCountdown(false)
                   setIsRunning(true)
@@ -296,12 +373,37 @@ export default function TabataSession() {
               formatTime(timeRemaining)
             )}
           </div>
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-4 items-center">
             <button
               onClick={startWorkout}
-              className="px-6 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+              className="px-6 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center gap-2"
             >
-              {isRunning ? 'Pause' : isPaused ? 'Resume' : 'Start'}
+              {isRunning ? (
+                <>
+                  <Pause className="w-5 h-5" />
+                  Pause
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5" />
+                  {isPaused ? 'Resume' : 'Start'}
+                </>
+              )}
+            </button>
+            <button
+              onClick={toggleAudio}
+              className={`p-2 rounded-lg ${
+                isAudioEnabled 
+                  ? 'bg-green-500 hover:bg-green-600' 
+                  : 'bg-red-500 hover:bg-red-600'
+              } text-white transition-colors`}
+              title={isAudioEnabled ? 'Disable Audio' : 'Enable Audio'}
+            >
+              {isAudioEnabled ? (
+                <Volume2 className="w-5 h-5" />
+              ) : (
+                <VolumeX className="w-5 h-5" />
+              )}
             </button>
           </div>
         </div>
