@@ -180,6 +180,15 @@ export default function EmomWorkout() {
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
+    // Add handleKeyDown to handle Enter/Return key
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>, exerciseId: string) => {
+        if (event.key === 'Enter' || event.key === 'Return') {
+            event.preventDefault() // Prevent any default form submission
+            setShowSuggestions(false)
+            setCurrentExerciseId(null)
+        }
+    }
+
     return (
         <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-24">
             <main className="container max-w-md mx-auto px-4 py-6">
@@ -305,6 +314,7 @@ export default function EmomWorkout() {
                                         value={exercise.name}
                                         onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
                                         onFocus={() => setCurrentExerciseId(exercise.id)}
+                                        onKeyDown={(e) => handleKeyDown(e, exercise.id)}
                                         className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 exercise-input"
                                     />
                                     
