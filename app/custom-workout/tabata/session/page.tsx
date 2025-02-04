@@ -123,6 +123,63 @@ export default function TabataSession() {
     }
   }
 
+  const handleComplete = () => {
+    setIsRunning(false)
+    setCompletedAt(new Date())
+    speak("Well done")
+    setShowSummary(true)
+  }
+
+  // Timer logic with beep only at 3 seconds remaining
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+
+    if (isRunning && !isPaused && workout) {
+      interval = setInterval(() => {
+        setTimeRemaining(prevTime => {
+          const newTime = prevTime - 1
+          console.log('Time remaining:', newTime)
+
+          // Play beep at 3 seconds remaining for both work and rest intervals
+          if (newTime === 3) {
+            console.log('3 seconds remaining - Playing beep')
+            beep()
+          }
+
+          // Handle interval completion
+          if (newTime <= 0) {
+            if (currentRound < workout.rounds * 2) { // Multiply by 2 to account for both work and rest periods
+              // Update interval type and round
+              if (isWorkPeriod) {
+                speak("Rest")
+                setTimeRemaining(workout.restTime)
+              } else {
+                const nextRound = Math.ceil((currentRound + 1) / 2)
+                if (nextRound <= workout.rounds) {
+                  speak(`Round ${nextRound}`)
+                }
+                setTimeRemaining(workout.workTime)
+              }
+              
+              setIsWorkPeriod(!isWorkPeriod)
+              setCurrentRound(currentRound + 1)
+            } else {
+              handleComplete()
+            }
+            return 0
+          }
+
+          return newTime
+        })
+      }, 1000)
+    }
+
+    return () => {
+      clearInterval(interval)
+      console.log('Timer cleanup')
+    }
+  }, [isRunning, isPaused, workout, currentRound, isWorkPeriod, handleComplete])
+
   // Update beep function to respect audio state
   const beep = () => {
     if (isAudioEnabled && beepSound) {
@@ -138,81 +195,6 @@ export default function TabataSession() {
       }
     }
   }
-
-  const handleComplete = () => {
-    setIsRunning(false)
-    setCompletedAt(new Date())
-    speak("Well Done")
-    setShowSummary(true)
-  }
-
-  // Timer logic
-  useEffect(() => {
-    let interval: NodeJS.Timeout
-
-    if (isRunning && !isPaused && workout) {
-      interval = setInterval(() => {
-        setTimeRemaining(prevTime => {
-          const newTime = prevTime - 1
-
-          // Announce "Work" or "Rest" at the start of each period
-          if (newTime === workout.workTime - 1 && isWorkPeriod) {
-            speak("Work")
-          }
-          if (newTime === workout.restTime - 1 && !isWorkPeriod) {
-            speak("Rest")
-          }
-
-          // Announce halfway through work period
-          if (isWorkPeriod && newTime === Math.floor(workout.workTime / 2)) {
-            speak("Half way there!")
-          }
-
-          // Play beep countdown for work period
-          if (isWorkPeriod && newTime === 3) {
-            window.speechSynthesis.cancel()
-            beep()
-          }
-
-          // Play beep countdown for rest period
-          if (!isWorkPeriod && newTime === 3) {
-            window.speechSynthesis.cancel()
-            beep()
-          }
-
-          // Handle period completion
-          if (newTime <= 0) {
-            // Toggle between work and rest periods
-            const nextIsWork = !isWorkPeriod
-
-            // If we're finishing a rest period, move to next exercise/round
-            if (!nextIsWork) {
-              if (currentRound >= workout.rounds && currentExercise >= workout.exercises.length - 1) {
-                handleComplete()
-                return 0
-              }
-
-              // Update exercise and round
-              if (currentExercise >= workout.exercises.length - 1) {
-                setCurrentRound(prev => prev + 1)
-                setCurrentExercise(0)
-              } else {
-                setCurrentExercise(prev => prev + 1)
-              }
-            }
-
-            // Set next period time and update isWorkPeriod
-            setIsWorkPeriod(nextIsWork)
-            return nextIsWork ? workout.workTime : workout.restTime
-          }
-
-          return newTime
-        })
-      }, 1000)
-    }
-
-    return () => clearInterval(interval)
-  }, [isRunning, isPaused, workout, currentRound, currentExercise, isWorkPeriod, handleComplete])
 
   // Speech synthesis function with enhanced male voice
   const speak = (text: string) => {

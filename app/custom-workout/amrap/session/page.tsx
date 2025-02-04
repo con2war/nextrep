@@ -40,7 +40,6 @@ export default function AmrapSession() {
   const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null)
   const [audioInitialized, setAudioInitialized] = useState(false)
   const [isAudioEnabled, setIsAudioEnabled] = useState(true)
-  const [hasBeepPlayed, setHasBeepPlayed] = useState(false)
 
   // Initialize beep sound on mount
   useEffect(() => {
@@ -185,28 +184,22 @@ export default function AmrapSession() {
     setShowSummary(true)
   }
 
-  // Timer logic with beep at 3 seconds and debug logging
+  // Timer logic with beep at 3 seconds
   useEffect(() => {
     let interval: NodeJS.Timeout
 
     if (isRunning && !isPaused && workout) {
-      console.log('Timer started, hasBeepPlayed:', hasBeepPlayed)
-
+      console.log('Timer started')
+      
       interval = setInterval(() => {
         setTimeRemaining(prevTime => {
           const newTime = prevTime - 1
-          console.log('Time remaining:', newTime, 'hasBeepPlayed:', hasBeepPlayed)
+          console.log('Time remaining:', newTime)
 
           // Play beep at exactly 3 seconds remaining
           if (newTime === 3) {
-            console.log('At 3 seconds mark')
-            if (!hasBeepPlayed) {
-              console.log('Attempting to play beep')
-              beep()
-              setHasBeepPlayed(true)
-            } else {
-              console.log('Beep already played')
-            }
+            console.log('At 3 seconds mark - Playing beep')
+            beep()
           }
 
           // Announce halfway through workout
@@ -218,11 +211,6 @@ export default function AmrapSession() {
           if (newTime === 10) {
             speak("10 seconds remaining")
           }
-          // Play 3-beep countdown sound at 3 seconds remaining
-          if (newTime === 3) {
-            window.speechSynthesis.cancel() // Cancel any ongoing speech
-            beep()
-          }
 
           // Handle workout completion
           if (newTime <= 0) {
@@ -233,12 +221,6 @@ export default function AmrapSession() {
           return newTime
         })
       }, 1000)
-    }
-
-    // Reset hasBeepPlayed when workout is paused or stopped
-    if (!isRunning || isPaused) {
-      setHasBeepPlayed(false)
-      console.log('Reset hasBeepPlayed state')
     }
 
     return () => {
@@ -259,7 +241,6 @@ export default function AmrapSession() {
       // Initialize audio before starting countdown
       initializeAudio()
       setShowCountdown(true)
-      setHasBeepPlayed(false)
       console.log('Starting new workout, reset states')
     }
   }
