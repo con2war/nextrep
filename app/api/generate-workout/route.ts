@@ -8,8 +8,8 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { goal, duration, equipment } = await req.json()
-    console.log('Received request:', { goal, duration, equipment }) // Debug log
+    const { goal, duration, equipment, split, targetMuscles, fitnessLevel } = await req.json()
+    console.log('Received request:', { goal, duration, equipment, split, targetMuscles, fitnessLevel }) // Debug log
 
     // Define conditioning-focused goals that require specific formats
     const conditioningGoals = ['conditioning', 'endurance', 'functional', 'athletic', 'fat_loss'];
@@ -17,6 +17,32 @@ export async function POST(req: Request) {
     
     console.log('Starting workout generation with:', { goal, equipment, duration });
     
+    let muscleGroupPrompt = ""
+    
+    if (split === 'fullBody') {
+      muscleGroupPrompt = `
+        Create a full-body workout that targets all major muscle groups:
+        - Upper body: chest, back, shoulders, and arms
+        - Core: abdominals and lower back
+        - Lower body: quadriceps, hamstrings, glutes, and calves
+        Ensure exercises are balanced across all body parts for overall development.
+      `
+    } else if (split === 'upperBody') {
+      muscleGroupPrompt = `
+        Create an upper body focused workout targeting: ${targetMuscles.length > 0 
+          ? `specifically ${targetMuscles.join(', ')}` 
+          : 'chest, back, shoulders, arms, and core'}.
+        Prioritize these muscle groups while maintaining a balanced upper body training approach.
+      `
+    } else if (split === 'lowerBody') {
+      muscleGroupPrompt = `
+        Create a lower body focused workout targeting: ${targetMuscles.length > 0 
+          ? `specifically ${targetMuscles.join(', ')}` 
+          : 'quadriceps, hamstrings, glutes, and calves'}.
+        Prioritize these muscle groups while ensuring balanced leg development.
+      `
+    }
+
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
@@ -31,7 +57,11 @@ export async function POST(req: Request) {
     ### **User Inputs:**
     - **Goal:** ${goal}  
     - **Equipment Available:** ${equipment.length > 0 ? equipment.join(', ') : "Bodyweight Only"}  
-    - **Time Limit:** ${duration} minutes  
+    - **Time Limit:** ${duration} minutes
+    - **Fitness Level:** ${fitnessLevel}
+    
+    ### **Muscle Group Focus:**
+    ${muscleGroupPrompt}
     
     ### **Workout Structure:**
     #### **1️⃣ Warm-up (5-10% of Total Time)**
