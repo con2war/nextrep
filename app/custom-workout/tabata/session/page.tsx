@@ -48,7 +48,6 @@ export default function TabataSession() {
     if (savedWorkout) {
       const parsedWorkout = JSON.parse(savedWorkout)
       setWorkout(parsedWorkout)
-      // Set initial time to work period
       setTimeRemaining(parsedWorkout.workTime)
       setIsWorkPeriod(true)
     } else {

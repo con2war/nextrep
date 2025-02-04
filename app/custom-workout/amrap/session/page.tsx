@@ -37,43 +37,86 @@ export default function AmrapSession() {
   const [completedAt, setCompletedAt] = useState<Date | null>(null)
   const [totalTime, setTotalTime] = useState(0)
   const [showCountdown, setShowCountdown] = useState(false)
+  const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null)
+  const [audioInitialized, setAudioInitialized] = useState(false)
 
-  // Speech synthesis function with enhanced male voice
+  // Initialize beep sound on mount
+  useEffect(() => {
+    const audio = new Audio('/beep.mp3')
+    audio.volume = 0.5
+    audio.preload = 'auto'
+
+    // Add event listeners for debugging
+    audio.addEventListener('error', (e) => {
+      console.error('Audio loading error:', e)
+    })
+
+    audio.addEventListener('canplaythrough', () => {
+      console.log('Audio loaded successfully')
+    })
+
+    try {
+      audio.load()
+      setBeepSound(audio)
+    } catch (error) {
+      console.error('Error loading audio:', error)
+    }
+
+    // Cleanup
+    return () => {
+      audio.removeEventListener('error', () => {})
+      audio.removeEventListener('canplaythrough', () => {})
+    }
+  }, [])
+
+  // Initialize audio on first user interaction
+  const initializeAudio = () => {
+    if (!audioInitialized && beepSound) {
+      console.log('Attempting to initialize audio...')
+      // iOS requires user interaction to start audio context
+      const playPromise = beepSound.play()
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            beepSound.pause()
+            beepSound.currentTime = 0
+            console.log('Audio initialized successfully')
+            setAudioInitialized(true)
+          })
+          .catch(error => {
+            console.error('Audio initialization error:', error)
+            // Additional error details
+            console.log('Audio ready state:', beepSound.readyState)
+            console.log('Audio network state:', beepSound.networkState)
+          })
+      }
+    }
+  }
+
+  // Speech synthesis function
   const speak = (text: string) => {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
+      window.speechSynthesis.cancel() // Cancel any ongoing speech
       const utterance = new SpeechSynthesisUtterance(text)
-      
-      let voices = window.speechSynthesis.getVoices()
-      if (voices.length === 0) {
-        window.speechSynthesis.addEventListener('voiceschanged', () => {
-          voices = window.speechSynthesis.getVoices()
+      utterance.volume = 1.5
+      window.speechSynthesis.speak(utterance)
+    }
+  }
+
+  // Beep function with iOS fixes
+  const beep = () => {
+    if (beepSound) {
+      beepSound.currentTime = 0
+      const playPromise = beepSound.play()
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('Error playing beep:', error)
+          // Retry play on error
+          setTimeout(() => {
+            beepSound.play().catch(e => console.error('Retry error:', e))
+          }, 100)
         })
       }
-
-      const preferredVoice = voices.find(
-        voice => 
-          (voice.name.includes('Male') || 
-           voice.name.includes('Daniel') ||
-           voice.name.includes('David') ||
-           voice.name.includes('James')) &&
-          (voice.lang.includes('en-US') || voice.lang.includes('en-GB'))
-      )
-
-      if (preferredVoice) {
-        utterance.voice = preferredVoice
-      }
-
-      utterance.pitch = 1.1    // Lower pitch sounds more authoritative/motivational
-      utterance.rate = 1.2     // Slightly slower for clarity and impact
-      utterance.volume = 1.5 
-      
-      if (text === "Let's Go" || text === "Well Done" || text === "Half way") {
-        utterance.pitch = 1.1
-        utterance.rate = 1.2
-      }
-
-      window.speechSynthesis.speak(utterance)
     }
   }
 
@@ -88,7 +131,7 @@ export default function AmrapSession() {
     if (savedWorkout) {
       const parsedWorkout = JSON.parse(savedWorkout)
       setWorkout(parsedWorkout)
-      setTimeRemaining(parsedWorkout.timeCap * 60)
+      setTimeRemaining(parsedWorkout.timer)
     } else {
       router.push('/custom-workout/amrap')
     }
@@ -97,18 +140,11 @@ export default function AmrapSession() {
   const handleComplete = () => {
     setIsRunning(false)
     setCompletedAt(new Date())
-    speak("Well Done")
+    speak("Well done")
     setShowSummary(true)
   }
 
-  // Add beep function with correct audio file path
-  const beep = () => {
-    const audio = new Audio('/beep.mp3')  // Contains all 3 beeps
-    audio.volume = 0.5  // Adjust volume as needed
-    audio.play().catch(error => console.error('Error playing beep:', error))
-  }
-
-  // Timer logic
+  // Timer logic with Web Speech API
   useEffect(() => {
     let interval: NodeJS.Timeout
 
@@ -141,7 +177,7 @@ export default function AmrapSession() {
     return () => clearInterval(interval)
   }, [isRunning, isPaused, workout, handleComplete])
 
-  // Start workout with countdown
+  // Start workout with audio initialization
   const startWorkout = () => {
     if (isRunning) {
       setIsRunning(false)
@@ -151,6 +187,7 @@ export default function AmrapSession() {
         setIsRunning(true)
         setIsPaused(false)
       } else {
+        initializeAudio() // Initialize beep sound on first start
         setShowCountdown(true)
       }
     }
