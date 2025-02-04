@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Play, Pause, XCircle, ChevronLeft } from "lucide-react"
+import { Play, Pause, XCircle, ChevronLeft, Volume2, VolumeX } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import WorkoutSummary from "@/app/components/WorkoutSummary"
@@ -39,6 +39,7 @@ export default function AmrapSession() {
   const [showCountdown, setShowCountdown] = useState(false)
   const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null)
   const [audioInitialized, setAudioInitialized] = useState(false)
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true)
 
   // Initialize beep sound on mount
   useEffect(() => {
@@ -80,38 +81,67 @@ export default function AmrapSession() {
           .then(() => {
             beepSound.pause()
             beepSound.currentTime = 0
-            console.log('Audio initialized successfully')
-            setAudioInitialized(true)
           })
-          .catch(error => {
-            console.error('Audio initialization error:', error)
-            // Additional error details
-            console.log('Audio ready state:', beepSound.readyState)
-            console.log('Audio network state:', beepSound.networkState)
-          })
+          .catch(error => console.error('Audio initialization error:', error))
+      }
+      setAudioInitialized(true)
+    }
+  }
+
+  // Test and initialize audio
+  const testAudio = () => {
+    if (isAudioEnabled) {
+      // Initialize beep
+      if (beepSound) {
+        beepSound.currentTime = 0
+        const playPromise = beepSound.play()
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              beepSound.pause()
+              beepSound.currentTime = 0
+              console.log('Beep sound tested successfully')
+            })
+            .catch(error => console.error('Beep test error:', error))
+        }
+
+        // Test speech synthesis
+        if ('speechSynthesis' in window) {
+          const testUtterance = new SpeechSynthesisUtterance("Audio check")
+          testUtterance.volume = 1.5
+          window.speechSynthesis.speak(testUtterance)
+        }
       }
     }
   }
 
-  // Speech synthesis function
+  // Toggle audio state
+  const toggleAudio = () => {
+    setIsAudioEnabled(!isAudioEnabled)
+    if (!audioInitialized) {
+      testAudio()
+      setAudioInitialized(true)
+    }
+  }
+
+  // Update speak function to respect audio state
   const speak = (text: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel() // Cancel any ongoing speech
+    if (isAudioEnabled && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(text)
       utterance.volume = 1.5
       window.speechSynthesis.speak(utterance)
     }
   }
 
-  // Beep function with iOS fixes
+  // Update beep function to respect audio state
   const beep = () => {
-    if (beepSound) {
+    if (isAudioEnabled && beepSound) {
       beepSound.currentTime = 0
       const playPromise = beepSound.play()
       if (playPromise !== undefined) {
         playPromise.catch(error => {
           console.error('Error playing beep:', error)
-          // Retry play on error
           setTimeout(() => {
             beepSound.play().catch(e => console.error('Retry error:', e))
           }, 100)
@@ -279,12 +309,37 @@ export default function AmrapSession() {
               formatTime(timeRemaining)
             )}
           </div>
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-4 items-center">
             <button
               onClick={startWorkout}
-              className="px-6 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+              className="px-6 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center gap-2"
             >
-              {isRunning ? 'Pause' : isPaused ? 'Resume' : 'Start'}
+              {isRunning ? (
+                <>
+                  <Pause className="w-5 h-5" />
+                  Pause
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5" />
+                  {isPaused ? 'Resume' : 'Start'}
+                </>
+              )}
+            </button>
+            <button
+              onClick={toggleAudio}
+              className={`p-2 rounded-lg ${
+                isAudioEnabled 
+                  ? 'bg-green-500 hover:bg-green-600' 
+                  : 'bg-red-500 hover:bg-red-600'
+              } text-white transition-colors`}
+              title={isAudioEnabled ? 'Disable Audio' : 'Enable Audio'}
+            >
+              {isAudioEnabled ? (
+                <Volume2 className="w-5 h-5" />
+              ) : (
+                <VolumeX className="w-5 h-5" />
+              )}
             </button>
           </div>
         </div>
