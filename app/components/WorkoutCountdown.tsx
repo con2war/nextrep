@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 
 interface WorkoutCountdownProps {
     onComplete: () => void
@@ -9,6 +9,28 @@ interface WorkoutCountdownProps {
 
 export default function WorkoutCountdown({ onComplete, onStart }: WorkoutCountdownProps) {
     const [countdownTime, setCountdownTime] = useState<number>(10)
+    const audioRef = useRef<HTMLAudioElement | null>(null)
+
+    // Initialize audio on component mount
+    useEffect(() => {
+        // Create audio element once
+        audioRef.current = new Audio('/beep.mp3')
+        audioRef.current.volume = 0.5
+        
+        // iOS requires user interaction before playing audio
+        // Preload the audio
+        if (audioRef.current) {
+            audioRef.current.load()
+        }
+
+        // Cleanup
+        return () => {
+            if (audioRef.current) {
+                audioRef.current.pause()
+                audioRef.current = null
+            }
+        }
+    }, [])
 
     // Call onStart in a separate useEffect
     useEffect(() => {
@@ -25,16 +47,26 @@ export default function WorkoutCountdown({ onComplete, onStart }: WorkoutCountdo
         }
     }
 
-    // Updated beep function
+    // Updated beep function for iOS compatibility
     const beep = () => {
-        const audio = new Audio('/beep.mp3')  // Create a short beep sound file
-        audio.volume = 0.5  // Adjust volume as needed
-        audio.play().catch(error => console.error('Error playing beep:', error))
+        if (audioRef.current) {
+            // Reset audio to start
+            audioRef.current.currentTime = 0
+            
+            // Play with error handling
+            const playPromise = audioRef.current.play()
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.error('Error playing beep:', error)
+                })
+            }
+        }
     }
 
-    // Countdown logic
+    // Countdown logic with single beep trigger
     useEffect(() => {
         let interval: NodeJS.Timeout
+        let hasBeepPlayed = false
 
         if (countdownTime >= 0) {
             interval = setInterval(() => {
@@ -44,10 +76,11 @@ export default function WorkoutCountdown({ onComplete, onStart }: WorkoutCountdo
                         speak("Get ready")
                     }
 
-                    // Play 3-beep countdown sound at 3 seconds remaining
-                    if (prev === 4) {
-                        window.speechSynthesis.cancel() // Cancel any ongoing speech
+                    // Play beep.mp3 once at exactly 3 seconds
+                    if (prev === 3 && !hasBeepPlayed) {
+                        window.speechSynthesis.cancel()
                         beep()
+                        hasBeepPlayed = true
                     }
 
                     // Start workout when countdown reaches 0
