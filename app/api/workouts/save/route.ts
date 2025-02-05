@@ -12,13 +12,6 @@ export async function POST(req: Request) {
 
     const data = await req.json()
     
-    // Structure the exercises data properly
-    const exercisesData = {
-      warmup: data.exercises.filter((ex: any) => ex.section === 'warmup'),
-      mainWorkout: data.exercises.filter((ex: any) => ex.section === 'mainWorkout'),
-      cooldown: data.exercises.filter((ex: any) => ex.section === 'cooldown')
-    }
-
     // First, ensure user exists in database
     const user = await prisma.user.upsert({
       where: {
@@ -32,15 +25,15 @@ export async function POST(req: Request) {
       },
     })
 
-    // Create the workout with structured data
+    // Create the workout with complete data
     const workout = await prisma.workout.create({
       data: {
         userId: user.id,
         duration: data.duration,
         type: data.type,
-        exercises: exercisesData, // Store structured exercises data
-        targetMuscles: data.targetMuscles || [],
-        difficulty: data.difficulty || 'medium',
+        exercises: data.exercises, // This will store the complete exercises object
+        targetMuscles: data.targetMuscles,
+        difficulty: data.difficulty,
       },
     })
 
@@ -52,7 +45,12 @@ export async function POST(req: Request) {
       },
     })
 
-    return NextResponse.json(workout)
+    // Return complete workout data
+    return NextResponse.json({
+      ...workout,
+      exercises: data.exercises, // Include complete exercises data
+      targetMuscles: data.targetMuscles,
+    })
   } catch (error) {
     console.error('Error saving workout:', error)
     return new NextResponse('Internal Server Error', { status: 500 })
