@@ -12,6 +12,13 @@ export async function POST(req: Request) {
 
     const data = await req.json()
     
+    // Structure the exercises data properly
+    const exercisesData = {
+      warmup: data.exercises.filter((ex: any) => ex.section === 'warmup'),
+      mainWorkout: data.exercises.filter((ex: any) => ex.section === 'mainWorkout'),
+      cooldown: data.exercises.filter((ex: any) => ex.section === 'cooldown')
+    }
+
     // First, ensure user exists in database
     const user = await prisma.user.upsert({
       where: {
@@ -25,15 +32,15 @@ export async function POST(req: Request) {
       },
     })
 
-    // Create the workout
+    // Create the workout with structured data
     const workout = await prisma.workout.create({
       data: {
-        userId: user.id, // Now we know the user exists
+        userId: user.id,
         duration: data.duration,
         type: data.type,
-        exercises: data.exercises,
-        targetMuscles: data.targetMuscles,
-        difficulty: data.difficulty,
+        exercises: exercisesData, // Store structured exercises data
+        targetMuscles: data.targetMuscles || [],
+        difficulty: data.difficulty || 'medium',
       },
     })
 
