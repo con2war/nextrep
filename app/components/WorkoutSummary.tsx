@@ -20,7 +20,10 @@ interface WorkoutSummaryProps {
       weight?: number
       distance?: number
       calories?: number
+      section?: string
     }>
+    targetMuscles?: string[]
+    difficulty?: string
   }
   duration: number // in seconds
   completedAt: Date
@@ -47,6 +50,12 @@ export default function WorkoutSummary({
 
     setIsSaving(true)
     try {
+      // Structure the exercises data with sections
+      const structuredExercises = workout.exercises.map(exercise => ({
+        ...exercise,
+        section: exercise.section || 'mainWorkout', // Default to mainWorkout if no section specified
+      }))
+
       const response = await fetch('/api/workouts/save', {
         method: 'POST',
         headers: {
@@ -55,9 +64,9 @@ export default function WorkoutSummary({
         body: JSON.stringify({
           type: workout.type,
           duration: formatDuration(duration),
-          exercises: workout.exercises,
-          targetMuscles: [], // Add if available in workout data
-          difficulty: 'medium', // Add if available in workout data
+          exercises: structuredExercises,
+          targetMuscles: workout.targetMuscles || [],
+          difficulty: workout.difficulty || 'medium',
         }),
       })
 
@@ -71,10 +80,7 @@ export default function WorkoutSummary({
 
       const savedWorkout = await response.json()
       
-      // Call original onSave if provided
       if (onSave) onSave()
-      
-      // Show success message
       alert('Workout saved successfully!')
     } catch (error) {
       console.error('Error saving workout:', error)
