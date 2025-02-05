@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Play, Pause, XCircle, ChevronLeft, Volume2, VolumeX } from "lucide-react"
+import { Play, Pause, XCircle, ChevronLeft, Volume2, VolumeX, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import WorkoutSummary from "@/app/components/WorkoutSummary"
 import WorkoutCountdown from "@/app/components/WorkoutCountdown"
+import Image from "next/image"
 
 interface Exercise {
   id: string
@@ -21,7 +22,8 @@ interface Exercise {
 interface EmomWorkout {
   name: string
   intervalTime: number
-  sets: number
+  intervalUnit: 'seconds' | 'minutes'
+  roundsPerMovement: number
   exercises: Exercise[]
 }
 
@@ -178,7 +180,7 @@ export default function EmomSession() {
           // When interval completes
           if (newTime <= 0) {
             // Check if current round is the last round
-            if (currentRound === workout.sets) {
+            if (currentRound === workout.roundsPerMovement * workout.exercises.length) {
               handleComplete()
               return 0
             }
@@ -231,6 +233,10 @@ export default function EmomSession() {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
   }
 
+  // Calculate total rounds and current exercise index
+  const totalRounds = (workout?.roundsPerMovement || 1) * (workout?.exercises?.length || 0)
+  const currentExerciseIndex = Math.floor((currentRound - 1) / (workout?.roundsPerMovement || 1)) % (workout?.exercises?.length || 1)
+
   // Don't render until workout is loaded
   if (!workout) {
     return null
@@ -250,18 +256,24 @@ export default function EmomSession() {
             Exit Workout
           </Link>
           <button
-            onClick={handleComplete}
-            className="flex items-center text-red-500 hover:text-red-600 transition-colors"
+            onClick={() => {
+              setCompletedAt(new Date())
+              setShowSummary(true)
+              speak("Well Done")
+            }}
+            className="text-gray-600 hover:text-red-500 transition-colors flex items-center gap-2"
           >
-            <XCircle className="w-5 h-5 mr-1" />
-            End Workout
+            <span>End Workout</span>
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Workout Name */}
-        <h1 className="text-3xl font-bold mb-4 text-center">{workout.name}</h1>
+        <div className="flex items-center justify-center mb-8">
+          <h1 className="text-3xl font-bold ml-2">{workout.name}</h1>
+        </div>
 
-        {/* Timer Display */}
+        {/* Timer and Rounds Display */}
         <div className="text-center mb-8">
           <div className={`text-6xl font-mono font-bold mb-4 ${
             timeRemaining <= 3 ? 'text-red-500' : ''
@@ -271,6 +283,8 @@ export default function EmomSession() {
                 onComplete={() => {
                   setShowCountdown(false)
                   setIsRunning(true)
+                  setIsPaused(false)
+                  speak("Let's Go")
                 }}
                 onStart={() => {
                   setIsRunning(false)
@@ -281,10 +295,14 @@ export default function EmomSession() {
               formatTime(timeRemaining)
             )}
           </div>
+          {/* Add Rounds Counter */}
+          <div className="text-lg font-medium text-gray-600 mb-4">
+            Round {Math.min(currentRound, totalRounds)} of {totalRounds}
+          </div>
           <div className="flex justify-center gap-4 items-center">
             <button
               onClick={startWorkout}
-              className="px-6 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center gap-2"
+              className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
             >
               {isRunning ? (
                 <>
@@ -316,23 +334,10 @@ export default function EmomSession() {
           </div>
         </div>
 
-        {/* Round and Exercise Display */}
-        <div className="bg-white/50 rounded-lg border border-gray-200 p-6 mb-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Round {currentRound} of {workout?.sets}</h2>
-            <span className="text-sm text-gray-500">
-              Exercise {currentExercise + 1} of {workout?.exercises.length}
-            </span>
-          </div>
-          <div className="text-lg">
-            {workout?.exercises[currentExercise]?.name}
-          </div>
-        </div>
-
         {/* Workout Details */}
         <div className="bg-white/50 rounded-lg border border-gray-200 p-6">
           <h2 className="text-xl font-semibold mb-4">
-            Every {workout.intervalTime} seconds for {workout.sets} Set{workout.sets > 1 ? 's' : ''}:
+            Every {workout.intervalTime} seconds for {workout.roundsPerMovement} Set{workout.roundsPerMovement > 1 ? 's' : ''}:
           </h2>
           <div className="space-y-4">
             {workout.exercises.map((exercise) => (
@@ -365,7 +370,7 @@ export default function EmomSession() {
             try {
               const shareData = {
                 title: workout?.name || 'EMOM Workout',
-                text: `I completed ${workout?.name} - ${workout?.sets} sets of ${workout?.exercises.length} exercises!`,
+                text: `I completed ${workout?.name} - ${workout?.roundsPerMovement} sets of ${workout?.exercises.length} exercises!`,
                 url: window.location.href
               }
               

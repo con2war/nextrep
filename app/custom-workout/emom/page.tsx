@@ -20,7 +20,7 @@ interface EmomWorkout {
     name: string
     intervalTime: number
     intervalUnit: 'seconds' | 'minutes'
-    sets: number
+    roundsPerMovement: number
     exercises: Exercise[]
 }
 
@@ -39,7 +39,7 @@ export default function EmomWorkout() {
         name: "",
         intervalTime: 30,
         intervalUnit: 'seconds',
-        sets: 1,
+        roundsPerMovement: 1,
         exercises: []
     })
     const [exercises, setExercises] = useState<GymExercise[]>([])
@@ -48,8 +48,11 @@ export default function EmomWorkout() {
     const [suggestions, setSuggestions] = useState<GymExercise[]>([])
     const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null)
 
-    // Calculate total workout time based on interval time and sets
-    const totalTime = workout.intervalTime * workout.sets * workout.exercises.length
+    // Calculate total rounds
+    const totalRounds = workout.roundsPerMovement * workout.exercises.length
+    
+    // Calculate total workout time based on interval time and total rounds
+    const totalTime = workout.intervalTime * totalRounds
 
     // Update interval with better handling
     const updateInterval = (value: string) => {
@@ -60,12 +63,12 @@ export default function EmomWorkout() {
         })
     }
 
-    // Update sets with better handling
-    const updateSets = (value: string) => {
+    // Update rounds with better handling
+    const updateRoundsPerMovement = (value: string) => {
         const parsedValue = value === '' ? '' : parseInt(value)
         setWorkout({
             ...workout,
-            sets: parsedValue === '' ? '' as unknown as number : Math.max(1, parsedValue || 1)
+            roundsPerMovement: parsedValue === '' ? '' as unknown as number : Math.max(1, parsedValue || 1)
         })
     }
 
@@ -111,7 +114,7 @@ export default function EmomWorkout() {
         // Validate workout
         if (workout.exercises.length === 0) return
         if (!workout.intervalTime) return
-        if (!workout.sets) return
+        if (!workout.roundsPerMovement) return
 
         // Convert interval to seconds if needed
         const workoutToSave = {
@@ -264,22 +267,27 @@ export default function EmomWorkout() {
                             </p>
                         </div>
 
-                        {/* Sets */}
+                        {/* Rounds per Movement */}
                         <div>
-                            <label className="block text-sm text-gray-600 mb-2">Rounds</label>
+                            <label className="block text-sm text-gray-600 mb-2">Rounds per Movement</label>
                             <input
                                 type="number"
                                 min="1"
-                                value={workout.sets}
-                                onChange={(e) => updateSets(e.target.value)}
+                                value={workout.roundsPerMovement}
+                                onChange={(e) => updateRoundsPerMovement(e.target.value)}
                                 onBlur={() => {
-                                    if (!workout.sets) {
-                                        setWorkout({ ...workout, sets: 1 })
+                                    if (!workout.roundsPerMovement) {
+                                        setWorkout({ ...workout, roundsPerMovement: 1 })
                                     }
                                 }}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                                placeholder="Enter sets"
+                                placeholder="Enter rounds per movement"
                             />
+                            <div className="mt-2 text-sm">
+                                <span className="text-gray-500">
+                                    Total Rounds: {totalRounds} ({workout.roundsPerMovement} × {workout.exercises.length} exercises)
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>

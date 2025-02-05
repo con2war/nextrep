@@ -84,22 +84,23 @@ export default function WorkoutSession({
     };
   });
 
-  // Updated Timer useEffect
+  // Single timer effect to handle counting
   useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
+    let timerId: NodeJS.Timeout | undefined = undefined;
 
     if (isRunning && !isPaused) {
-      intervalId = setInterval(() => {
-        setTimer(prevTimer => prevTimer + 1);
+      timerId = setInterval(() => {
+        setTimer(prev => prev + 1);
       }, 1000);
     }
 
+    // Cleanup function
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (timerId) {
+        clearInterval(timerId);
       }
     };
-  }, [isRunning, isPaused]);
+  }, [isRunning, isPaused]); // Only depend on these two states
 
   // Load workout data on mount
   useEffect(() => {
@@ -112,32 +113,6 @@ export default function WorkoutSession({
       router.push('/daily-workout')
     }
   }, [router])
-
-  // Timer logic with synchronized vocal cues
-  useEffect(() => {
-    let interval: NodeJS.Timeout
-
-    if (isRunning) {
-      // Announce start only once
-      if (!hasAnnouncedStart) {
-        speak("Let's Go")
-        setHasAnnouncedStart(true)
-      }
-
-      interval = setInterval(() => {
-        setTimer((prevTime) => {
-          // Announce every minute
-          if (prevTime > 0 && (prevTime + 1) % 60 === 0) {
-            const minutes = Math.floor((prevTime + 1) / 60)
-            speak(`${minutes} minute${minutes > 1 ? 's' : ''}`)
-          }
-          return prevTime + 1
-        })
-      }, 1000)
-    }
-
-    return () => clearInterval(interval)
-  }, [isRunning, hasAnnouncedStart])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -266,13 +241,10 @@ export default function WorkoutSession({
             <Image
               src="/images/logo.png"
               alt="NextRep AI Logo"
-              width={32}
-              height={32}
-              className="h-8 w-auto"
+              width={64}
+              height={64}
+              className="h-12 w-auto"
             />
-            <h1 className="text-xl font-semibold text-gray-900">
-              {workout.name || 'Daily Workout'}
-            </h1>
           </div>
           <button
             onClick={() => {

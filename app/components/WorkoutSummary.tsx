@@ -1,7 +1,10 @@
 "use client"
 
-import { Share2, Save, X } from "lucide-react"
+import { Share2, Save, Home } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { useRouter } from "next/navigation"
+import { useUser } from '@auth0/nextjs-auth0/client'
+import { useState } from 'react'
 
 interface WorkoutSummaryProps {
   isOpen: boolean
@@ -32,6 +35,55 @@ export default function WorkoutSummary({
   duration,
   completedAt
 }: WorkoutSummaryProps) {
+  const router = useRouter()
+  const { user, isLoading } = useUser()
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!user) {
+      router.push('/api/auth/login')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const response = await fetch('/api/workouts/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: workout.type,
+          duration: formatDuration(duration),
+          exercises: workout.exercises,
+          targetMuscles: [], // Add if available in workout data
+          difficulty: 'medium', // Add if available in workout data
+        }),
+      })
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/api/auth/login')
+          return
+        }
+        throw new Error('Failed to save workout')
+      }
+
+      const savedWorkout = await response.json()
+      
+      // Call original onSave if provided
+      if (onSave) onSave()
+      
+      // Show success message
+      alert('Workout saved successfully!')
+    } catch (error) {
+      console.error('Error saving workout:', error)
+      alert('Failed to save workout. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   if (!isOpen) return null
 
   const formatDuration = (seconds: number) => {
@@ -44,11 +96,8 @@ export default function WorkoutSummary({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">Workout Complete!</h2>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-              <X className="w-5 h-5" />
-            </button>
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-center">Workout Complete!</h2>
           </div>
 
           <div className="space-y-4">
@@ -88,14 +137,15 @@ export default function WorkoutSummary({
               </ul>
             </div>
 
-            {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-3 pt-4">
+            {/* Updated Action Buttons */}
+            <div className="grid grid-cols-3 gap-3 pt-4">
               <button
-                onClick={onSave}
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Save className="w-4 h-4" />
-                Save
+                {isSaving ? 'Saving...' : 'Save'}
               </button>
               <button
                 onClick={onShare}
@@ -103,6 +153,13 @@ export default function WorkoutSummary({
               >
                 <Share2 className="w-4 h-4" />
                 Share
+              </button>
+              <button
+                onClick={() => router.push('/')}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+              >
+                <Home className="w-4 h-4" />
+                Exit
               </button>
             </div>
           </div>
