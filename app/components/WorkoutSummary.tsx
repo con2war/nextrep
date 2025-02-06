@@ -25,6 +25,7 @@ interface WorkoutSummaryProps {
   onClose: () => void;
   onSave: () => void;
   onShare: () => void;
+  hideActions?: boolean;
   workout: {
     name: string;
     type: "AMRAP" | "EMOM" | "TABATA" | "FOR TIME" | "DAILY";
@@ -53,6 +54,7 @@ export default function WorkoutSummary({
   onClose,
   onSave,
   onShare,
+  hideActions,
   workout,
   duration,
   completedAt,

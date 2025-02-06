@@ -2,18 +2,54 @@
 
 import { useUser } from '@auth0/nextjs-auth0/client'
 import { useState, useEffect } from 'react'
-import { Loader2, Calendar, Clock, Dumbbell, Star, Heart, Play, X, ChevronDown } from 'lucide-react'
+import {
+  Loader2,
+  Calendar,
+  Clock,
+  Dumbbell,
+  Star,
+  Heart,
+  Play,
+  X
+} from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { formatDistanceToNow } from 'date-fns'
 
+//
+// Helper function to format a duration (in seconds) as mm:ss.
+//
+const formatDuration = (seconds: number) => {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+//
+// Interface for a saved workout, including unique fields for EMOM, TABATA, etc.
+//
 interface SavedWorkout {
   id: string
-  type: string
+  type: 'AMRAP' | 'EMOM' | 'TABATA' | 'FOR TIME' | 'DAILY'
+  name?: string
   duration: string
   difficulty: string
   targetMuscles: string[]
   createdAt: string
-  exercises: any // Add exercises to the interface
+  exercises: any // could be a JSON string or an array
+  // For DAILY workouts (structured exercises)
+  warmup?: any[]
+  mainWorkout?: any[]
+  cooldown?: any[]
+  // Unique fields for EMOM (and similar)
+  intervalTime?: number
+  roundsPerMovement?: number
+  // Unique fields for TABATA:
+  workTime?: number
+  restTime?: number
+  rounds?: number
+  // (Add additional unique fields as needed.)
+  timeCap?: number
 }
 
 interface UserStats {
@@ -33,13 +69,14 @@ interface UserStats {
 
 export default function Profile() {
   const { user, error, isLoading } = useUser()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<'overview' | 'favorites'>('overview')
   const [savedWorkouts, setSavedWorkouts] = useState<SavedWorkout[]>([])
   const [selectedWorkout, setSelectedWorkout] = useState<SavedWorkout | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [userStats, setUserStats] = useState<UserStats | null>(null)
-  const router = useRouter()
 
+  // Fetch saved workouts and user stats when the user is logged in.
   useEffect(() => {
     const fetchSavedWorkouts = async () => {
       try {
@@ -63,8 +100,6 @@ export default function Profile() {
         setUserStats(data)
       } catch (error) {
         console.error('Error fetching user stats:', error)
-        // Optionally show error to user
-        // setError(error.message)
       }
     }
 
@@ -74,149 +109,47 @@ export default function Profile() {
     }
   }, [user])
 
+  // When a favorited workout is clicked, store it as selected and open the modal.
   const handleWorkoutClick = (workout: SavedWorkout) => {
     setSelectedWorkout(workout)
     setIsModalOpen(true)
   }
 
-// In your profile page, update the key to "selectedWorkout"
-const handleStartWorkout = (workout: any) => {
-  try {
-    const formattedWorkout = {
-      id: workout.id,
-      name: workout.type, // Using type as name if no name provided
-      type: workout.type,
-      duration: workout.duration,
-      difficulty: workout.difficulty,
-      targetMuscles: workout.targetMuscles,
-      exercises: workout.exercises // This should be a structured object with keys: warmup, mainWorkout, cooldown
-    }
-
-    // Save using the key expected by the workout session page.
-    localStorage.setItem('selectedWorkout', JSON.stringify(formattedWorkout))
-    router.push('/daily-workout')
-  } catch (error) {
-    console.error('Error starting workout:', error)
-    alert('Error loading workout. Please try again.')
-  }
-}
-
-  const renderExercises = () => {
-    if (!selectedWorkout) return null;
-  
-    let exercisesData: {
-      warmup: any[];
-      mainWorkout: any[];
-      cooldown: any[];
-    };
-  
+  // Format and save the workout data, then navigate to the proper session page.
+  const handleStartWorkout = (workout: SavedWorkout) => {
     try {
-      // Determine whether the saved exercises are a string (and parse them)
-      const rawExercises =
-        typeof selectedWorkout.exercises === 'string'
-          ? JSON.parse(selectedWorkout.exercises)
-          : selectedWorkout.exercises;
-  
-      console.log("rawExercises:", rawExercises); // Debug log
-  
-      if (Array.isArray(rawExercises)) {
-        // If it’s a flattened array, try to group them by their 'section' property.
-        exercisesData = {
-          warmup: rawExercises.filter((ex: any) => ex.section === 'warmup'),
-          mainWorkout: rawExercises.filter((ex: any) => ex.section === 'mainWorkout'),
-          cooldown: rawExercises.filter((ex: any) => ex.section === 'cooldown'),
-        };
+      const formattedWorkout = {
+        id: workout.id,
+        name: workout.name || workout.type,
+        type: workout.type,
+        duration: workout.duration,
+        difficulty: workout.difficulty,
+        targetMuscles: workout.targetMuscles,
+        exercises: workout.exercises,
+        warmup: workout.warmup,
+        mainWorkout: workout.mainWorkout,
+        cooldown: workout.cooldown,
+        // Include unique fields with fallback defaults.
+        intervalTime: workout.intervalTime ?? 0,
+        roundsPerMovement: workout.roundsPerMovement ?? 0,
+        workTime: workout.workTime ?? 0,
+        restTime: workout.restTime ?? 0,
+        rounds: workout.rounds ?? 0,
+      }
+      localStorage.setItem('selectedWorkout', JSON.stringify(formattedWorkout))
+
+      // If it's an EMOM workout, navigate to the EMOM session page.
+      if (workout.type === 'EMOM') {
+        router.push('/emom/session')
       } else {
-        // Otherwise assume it’s already structured
-        exercisesData = rawExercises;
+        // For all other workout types, navigate to the standard workout session page.
+        router.push('/daily-workout')
       }
-  
-      console.log("exercisesData in renderExercises:", exercisesData); // Debug log
-  
-      // If all sections are empty, show a message.
-      if (
-        (!exercisesData.warmup || exercisesData.warmup.length === 0) &&
-        (!exercisesData.mainWorkout || exercisesData.mainWorkout.length === 0) &&
-        (!exercisesData.cooldown || exercisesData.cooldown.length === 0)
-      ) {
-        return <p className="text-gray-400">No exercise details available</p>;
-      }
-  
-      return (
-        <div className="space-y-6">
-          {/* Warmup Section */}
-          {exercisesData.warmup && exercisesData.warmup.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-400 mb-2">Warm-up</h4>
-              <div className="space-y-2">
-                {exercisesData.warmup.map((exercise: any, index: number) => (
-                  <div
-                    key={`warmup-${index}`}
-                    className="p-3 rounded-lg border border-gray-800 bg-white/50"
-                  >
-                    <p className="font-medium">{exercise.exercise || exercise.name}</p>
-                    <p className="text-sm text-gray-400">
-                      {exercise.sets && `${exercise.sets} sets`}
-                      {exercise.duration && ` • ${exercise.duration}`}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-  
-          {/* Main Workout Section */}
-          {exercisesData.mainWorkout && exercisesData.mainWorkout.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-400 mb-2">Main Workout</h4>
-              <div className="space-y-2">
-                {exercisesData.mainWorkout.map((exercise: any, index: number) => (
-                  <div
-                    key={`main-${index}`}
-                    className="p-3 rounded-lg border border-gray-800 bg-white/50"
-                  >
-                    <p className="font-medium">{exercise.exercise || exercise.name}</p>
-                    <p className="text-sm text-gray-400">
-                      {exercise.sets && `${exercise.sets} sets`}
-                      {exercise.reps && ` × ${exercise.reps} reps`}
-                      {exercise.rest && ` • ${exercise.rest} rest`}
-                    </p>
-                    {exercise.notes && (
-                      <p className="text-sm text-gray-400 mt-1">{exercise.notes}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-  
-          {/* Cooldown Section */}
-          {exercisesData.cooldown && exercisesData.cooldown.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-400 mb-2">Cool-down</h4>
-              <div className="space-y-2">
-                {exercisesData.cooldown.map((exercise: any, index: number) => (
-                  <div
-                    key={`cooldown-${index}`}
-                    className="p-3 rounded-lg border border-gray-800 bg-white/50"
-                  >
-                    <p className="font-medium">{exercise.exercise || exercise.name}</p>
-                    <p className="text-sm text-gray-400">
-                      {exercise.duration && exercise.duration}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      );
     } catch (error) {
-      console.error('Error parsing exercises:', error);
-      return <p className="text-gray-400">Error loading exercise details</p>;
+      console.error('Error starting workout:', error)
+      alert('Error loading workout. Please try again.')
     }
-  };
-  
+  }
 
   if (isLoading) {
     return (
@@ -248,8 +181,8 @@ const handleStartWorkout = (workout: any) => {
               Sign in to unlock personalized features
             </p>
           </div>
-
           <div className="grid gap-8 md:grid-cols-2 mb-12">
+            {/* Example marketing card */}
             <div className="p-6 bg-white rounded-xl border border-blue-100 shadow-sm">
               <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
                 <Heart className="w-6 h-6 text-blue-500" />
@@ -259,38 +192,7 @@ const handleStartWorkout = (workout: any) => {
                 Keep track of your preferred workouts and access them anytime
               </p>
             </div>
-
-            <div className="p-6 bg-white rounded-xl border border-blue-100 shadow-sm">
-              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
-                <Calendar className="w-6 h-6 text-blue-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Track Progress</h3>
-              <p className="text-gray-600">
-                Monitor your workout history and fitness achievements
-              </p>
-            </div>
-
-            <div className="p-6 bg-white rounded-xl border border-blue-100 shadow-sm">
-              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
-                <Star className="w-6 h-6 text-blue-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Personalization</h3>
-              <p className="text-gray-600">
-                Get workouts tailored to your preferences and goals
-              </p>
-            </div>
-
-            <div className="p-6 bg-white rounded-xl border border-blue-100 shadow-sm">
-              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
-                <Play className="w-6 h-6 text-blue-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Resume Progress</h3>
-              <p className="text-gray-600">
-                Pick up where you left off with saved workout sessions
-              </p>
-            </div>
           </div>
-
           <div className="text-center">
             <a
               href="/api/auth/login"
@@ -306,7 +208,7 @@ const handleStartWorkout = (workout: any) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      {/* Header Section */}
+      {/* Header */}
       <div className="bg-white/80 backdrop-blur-lg border-b border-blue-100 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-6">
           <div className="flex items-center gap-4">
@@ -319,9 +221,7 @@ const handleStartWorkout = (workout: any) => {
             />
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-              {user?.email && (
-                <p className="text-sm text-gray-600 mt-1">{user.email}</p>
-              )}
+              {user?.email && <p className="text-sm text-gray-600 mt-1">{user.email}</p>}
             </div>
           </div>
         </div>
@@ -333,11 +233,7 @@ const handleStartWorkout = (workout: any) => {
           <div className="flex gap-8">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`py-4 px-1 relative ${
-                activeTab === 'overview'
-                  ? 'text-blue-600'
-                  : 'text-gray-600 hover:text-blue-600'
-              }`}
+              className={`py-4 px-1 relative ${activeTab === 'overview' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}`}
             >
               Overview
               {activeTab === 'overview' && (
@@ -346,11 +242,7 @@ const handleStartWorkout = (workout: any) => {
             </button>
             <button
               onClick={() => setActiveTab('favorites')}
-              className={`py-4 px-1 relative ${
-                activeTab === 'favorites'
-                  ? 'text-blue-600'
-                  : 'text-gray-600 hover:text-blue-600'
-              }`}
+              className={`py-4 px-1 relative ${activeTab === 'favorites' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}`}
             >
               Favorites
               {activeTab === 'favorites' && (
@@ -361,7 +253,7 @@ const handleStartWorkout = (workout: any) => {
         </div>
       </div>
 
-      {/* Content */}
+      {/* Main Content */}
       <div className="max-w-2xl mx-auto px-4 py-8">
         {activeTab === 'overview' ? (
           <>
@@ -389,12 +281,9 @@ const handleStartWorkout = (workout: any) => {
             <div className="mb-8">
               <h3 className="text-lg font-medium text-gray-700 mb-4">Recently Favorited</h3>
               <div className="space-y-3">
-                {userStats?.recentWorkouts.length ? (
+                {userStats?.recentWorkouts && userStats.recentWorkouts.length > 0 ? (
                   userStats.recentWorkouts.map((workout, index) => (
-                    <div 
-                      key={index}
-                      className="p-4 rounded-lg border border-blue-100 bg-white"
-                    >
+                    <div key={index} className="p-4 rounded-lg border border-blue-100 bg-white">
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <h4 className="font-medium text-gray-700">{workout.name}</h4>
@@ -407,10 +296,7 @@ const handleStartWorkout = (workout: any) => {
                       </div>
                       <div className="flex flex-wrap gap-2 mt-2">
                         {workout.targetMuscles.map((muscle, i) => (
-                          <span 
-                            key={i}
-                            className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-600"
-                          >
+                          <span key={i} className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-600">
                             {muscle}
                           </span>
                         ))}
@@ -425,12 +311,8 @@ const handleStartWorkout = (workout: any) => {
           </>
         ) : (
           <div className="space-y-4">
-            {isLoading ? (
-              <div className="text-center py-8 text-gray-400">Loading...</div>
-            ) : savedWorkouts.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                No saved workouts yet
-              </div>
+            {savedWorkouts.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">No saved workouts yet</div>
             ) : (
               savedWorkouts.map((workout) => (
                 <button
@@ -471,66 +353,149 @@ const handleStartWorkout = (workout: any) => {
             )}
           </div>
         )}
+      </div>
 
-        {/* Workout Details Modal */}
-        {isModalOpen && selectedWorkout && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-6">
-                  <h2 className="text-xl font-bold text-gray-900">{selectedWorkout.type}</h2>
-                  <button
-                    onClick={() => setIsModalOpen(false)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="flex gap-4 mb-6">
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Clock className="w-4 h-4" />
-                    {selectedWorkout.duration}
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Dumbbell className="w-4 h-4" />
-                    {selectedWorkout.difficulty}
-                  </div>
-                </div>
-
-                <div className="mb-6">
-                  <h3 className="font-medium text-gray-900 mb-2">Target Muscles</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedWorkout.targetMuscles.map((muscle, index) => (
-                      <span
-                        key={index}
-                        className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-600"
-                      >
-                        {muscle}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mb-6">
-                  <h3 className="font-medium text-gray-900 mb-2">Exercises</h3>
-                  <div className="space-y-2">
-                    {renderExercises()}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => handleStartWorkout(selectedWorkout)}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white font-medium p-4 rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  <Play className="w-5 h-5" />
-                  Start Workout
-                </button>
+      {/* Custom Modal: Display complete workout details with unique fields and a Start Workout button */}
+      {isModalOpen && selectedWorkout && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Modal Header */}
+              <div className="mb-4">
+                <h2 className="text-xl font-bold text-center">Workout Details</h2>
               </div>
+
+              <div className="space-y-4">
+                {/* Basic Details */}
+                <div>
+                  <h3 className="font-medium text-gray-900">
+                    {selectedWorkout.name || selectedWorkout.type}
+                  </h3>
+                  <p className="text-sm text-gray-500">{selectedWorkout.type} Workout</p>
+                  {selectedWorkout.difficulty && (
+                    <p className="text-sm text-gray-500">Difficulty: {selectedWorkout.difficulty}</p>
+                  )}
+                </div>
+
+                {/* Unique Workout Details */}
+                {selectedWorkout.type === "TABATA" && (
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-2">Tabata Details</h3>
+                    <p className="text-sm text-gray-500">
+                      Work: {selectedWorkout.workTime ?? "--"}s &nbsp; Rest: {selectedWorkout.restTime ?? "--"}s
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Rounds: {selectedWorkout.rounds ?? "--"}
+                    </p>
+                  </div>
+                )}
+                {selectedWorkout.type === "EMOM" && (
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-2">EMOM Details</h3>
+                    <p className="text-sm text-gray-500">
+                      Interval Time: {selectedWorkout.intervalTime ?? "--"} seconds
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Rounds per Movement: {selectedWorkout.roundsPerMovement ?? "--"}
+                    </p>
+                  </div>
+                )}
+                {selectedWorkout.type === "AMRAP" && selectedWorkout.timeCap && (
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-2">AMRAP Details</h3>
+                    <p className="text-sm text-gray-500">
+                      Time Cap: {selectedWorkout.timeCap} minute{selectedWorkout.timeCap > 1 ? "s" : ""}
+                    </p>
+                  </div>
+                )}
+                {selectedWorkout.type === "FOR TIME" && (
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-2">For Time Details</h3>
+                    {/* Add any unique fields for FOR TIME workouts if applicable */}
+                  </div>
+                )}
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 gap-4 py-4 border-y border-gray-100">
+                  <div>
+                    <p className="text-sm text-gray-500">Duration</p>
+                    <p className="text-lg font-medium">{formatDuration(Number(selectedWorkout.duration))}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Completed</p>
+                    <p className="text-lg font-medium">
+                      {formatDistanceToNow(new Date(selectedWorkout.createdAt), { addSuffix: true })}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Target Muscles */}
+                {selectedWorkout.targetMuscles && selectedWorkout.targetMuscles.length > 0 && (
+                  <div>
+                    <h3 className="font-medium mb-2">Target Muscles</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedWorkout.targetMuscles.map((muscle, index) => (
+                        <span key={index} className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-sm">
+                          {muscle}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Exercises */}
+                <div>
+                  <h3 className="font-medium mb-2">Exercises</h3>
+                  {["EMOM", "FOR TIME", "AMRAP", "TABATA"].includes(selectedWorkout.type) ? (
+                    (() => {
+                      let exercisesData: any[] = []
+                      if (typeof selectedWorkout.exercises === "string") {
+                        try {
+                          exercisesData = JSON.parse(selectedWorkout.exercises)
+                        } catch (error) {
+                          console.error("Error parsing exercises:", error)
+                        }
+                      } else if (Array.isArray(selectedWorkout.exercises)) {
+                        exercisesData = selectedWorkout.exercises
+                      }
+                      return exercisesData.length > 0 ? (
+                        <ul className="space-y-2">
+                          {exercisesData.map((exercise, index) => (
+                            <li key={index} className="text-sm bg-gray-50 p-2 rounded">
+                              <span className="font-medium">{exercise.name || exercise.exercise}</span>
+                              {exercise.sets && <span className="text-gray-500"> • {exercise.sets} sets</span>}
+                              {exercise.reps && <span className="text-gray-500"> • {exercise.reps} reps</span>}
+                              {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
+                              {exercise.rest && <span className="text-gray-500"> • Rest: {exercise.rest}</span>}
+                              {exercise.notes && <p className="text-xs text-gray-500 mt-1 italic">{exercise.notes}</p>}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-gray-400">No exercise details available</p>
+                      )
+                    })()
+                  ) : (
+                    <p className="text-gray-400">No exercise details available</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Single Action Button: Start Workout */}
+              <button
+                onClick={() => {
+                  setIsModalOpen(false)
+                  handleStartWorkout(selectedWorkout)
+                }}
+                className="mt-6 w-full flex items-center justify-center gap-2 bg-blue-500 text-white font-medium p-4 rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                <Play className="w-5 h-5" />
+                Start Workout
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Sign Out Button */}
       <div className="max-w-2xl mx-auto px-4 py-8 border-t border-gray-100">
@@ -544,4 +509,3 @@ const handleStartWorkout = (workout: any) => {
     </div>
   )
 }
-
