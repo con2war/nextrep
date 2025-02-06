@@ -1,8 +1,7 @@
 // This is your Prisma schema file
 datasource db {
-  provider  = "postgresql"
-  url       = env("POSTGRES_PRISMA_URL") // Uses connection pooling
-  directUrl = env("POSTGRES_URL_NON_POOLING") // Uses a direct connection
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -16,6 +15,7 @@ model User {
   name            String?
   workouts        Workout[]
   favoriteWorkouts FavoriteWorkout[]
+  completedWorkouts CompletedWorkout[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
@@ -26,15 +26,18 @@ model Workout {
   user          User      @relation(fields: [userId], references: [id])
   date          DateTime  @default(now())
   duration      String
-  type          String    // e.g., "strength", "cardio", "hiit"
-  exercises     Json      // Stores the workout structure
+  type          String    
+  name          String?
+  exercises     Json      // Structured as: { warmup: [], mainWorkout: [], cooldown: [] }
   targetMuscles String[]
   difficulty    String
   favorites     FavoriteWorkout[]
+  completions   CompletedWorkout[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([userId])
+  @@index([type])
 }
 
 model FavoriteWorkout {
@@ -52,12 +55,18 @@ model FavoriteWorkout {
 model CompletedWorkout {
   id          String   @id @default(cuid())
   userId      String
+  workoutId   String?
+  workout     Workout? @relation(fields: [workoutId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
   type        String
   duration    String?
   rating      Int?
+  notes       String?
+  exercises   Json?
   completedAt DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([userId])
+  @@index([workoutId])
 }
