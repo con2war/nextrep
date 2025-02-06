@@ -2,8 +2,9 @@
 
 import { useUser } from '@auth0/nextjs-auth0/client'
 import { useState, useEffect } from 'react'
-import { Loader2, Calendar, Clock, Dumbbell, Star, Heart, Play, X } from 'lucide-react'
+import { Loader2, Calendar, Clock, Dumbbell, Star, Heart, Play, X, ChevronDown } from 'lucide-react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 
 interface SavedWorkout {
   id: string
@@ -37,6 +38,7 @@ export default function Profile() {
   const [selectedWorkout, setSelectedWorkout] = useState<SavedWorkout | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [userStats, setUserStats] = useState<UserStats | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     const fetchSavedWorkouts = async () => {
@@ -77,65 +79,82 @@ export default function Profile() {
     setIsModalOpen(true)
   }
 
-  const handleStartWorkout = () => {
-    if (selectedWorkout) {
-      try {
-        const exercises = typeof selectedWorkout.exercises === 'string'
-          ? JSON.parse(selectedWorkout.exercises)
-          : selectedWorkout.exercises;
-
-        // Reset completed sets for each exercise section
-        const resetExercises = {
-          warmup: exercises.warmup?.map((ex: any) => ({
-            ...ex,
-            completed: 0
-          })) || [],
-          mainWorkout: exercises.mainWorkout?.map((ex: any) => ({
-            ...ex,
-            completed: 0
-          })) || [],
-          cooldown: exercises.cooldown?.map((ex: any) => ({
-            ...ex,
-            completed: 0
-          })) || []
-        };
-
-        const formattedWorkout = {
-          ...selectedWorkout,
-          exercises: resetExercises,
-        };
-
-        console.log('Starting workout:', formattedWorkout);
-        localStorage.setItem('selectedWorkout', JSON.stringify(formattedWorkout));
-        window.location.href = '/daily-workout';
-      } catch (error) {
-        console.error('Error starting workout:', error);
-      }
+// In your profile page, update the key to "selectedWorkout"
+const handleStartWorkout = (workout: any) => {
+  try {
+    const formattedWorkout = {
+      id: workout.id,
+      name: workout.type, // Using type as name if no name provided
+      type: workout.type,
+      duration: workout.duration,
+      difficulty: workout.difficulty,
+      targetMuscles: workout.targetMuscles,
+      exercises: workout.exercises // This should be a structured object with keys: warmup, mainWorkout, cooldown
     }
+
+    // Save using the key expected by the workout session page.
+    localStorage.setItem('selectedWorkout', JSON.stringify(formattedWorkout))
+    router.push('/daily-workout')
+  } catch (error) {
+    console.error('Error starting workout:', error)
+    alert('Error loading workout. Please try again.')
   }
+}
 
   const renderExercises = () => {
     if (!selectedWorkout) return null;
-
+  
+    let exercisesData: {
+      warmup: any[];
+      mainWorkout: any[];
+      cooldown: any[];
+    };
+  
     try {
-      const exercises = typeof selectedWorkout.exercises === 'string'
-        ? JSON.parse(selectedWorkout.exercises)
-        : selectedWorkout.exercises;
-
-      if (!exercises || (!exercises.warmup && !exercises.mainWorkout && !exercises.cooldown)) {
+      // Determine whether the saved exercises are a string (and parse them)
+      const rawExercises =
+        typeof selectedWorkout.exercises === 'string'
+          ? JSON.parse(selectedWorkout.exercises)
+          : selectedWorkout.exercises;
+  
+      console.log("rawExercises:", rawExercises); // Debug log
+  
+      if (Array.isArray(rawExercises)) {
+        // If it’s a flattened array, try to group them by their 'section' property.
+        exercisesData = {
+          warmup: rawExercises.filter((ex: any) => ex.section === 'warmup'),
+          mainWorkout: rawExercises.filter((ex: any) => ex.section === 'mainWorkout'),
+          cooldown: rawExercises.filter((ex: any) => ex.section === 'cooldown'),
+        };
+      } else {
+        // Otherwise assume it’s already structured
+        exercisesData = rawExercises;
+      }
+  
+      console.log("exercisesData in renderExercises:", exercisesData); // Debug log
+  
+      // If all sections are empty, show a message.
+      if (
+        (!exercisesData.warmup || exercisesData.warmup.length === 0) &&
+        (!exercisesData.mainWorkout || exercisesData.mainWorkout.length === 0) &&
+        (!exercisesData.cooldown || exercisesData.cooldown.length === 0)
+      ) {
         return <p className="text-gray-400">No exercise details available</p>;
       }
-
+  
       return (
         <div className="space-y-6">
           {/* Warmup Section */}
-          {exercises.warmup && exercises.warmup.length > 0 && (
+          {exercisesData.warmup && exercisesData.warmup.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-400 mb-2">Warm-up</h4>
               <div className="space-y-2">
-                {exercises.warmup.map((exercise: any, index: number) => (
-                  <div key={`warmup-${index}`} className="p-3 rounded-lg border border-gray-800 bg-white-900/50">
-                    <p className="font-medium">{exercise.exercise}</p>
+                {exercisesData.warmup.map((exercise: any, index: number) => (
+                  <div
+                    key={`warmup-${index}`}
+                    className="p-3 rounded-lg border border-gray-800 bg-white/50"
+                  >
+                    <p className="font-medium">{exercise.exercise || exercise.name}</p>
                     <p className="text-sm text-gray-400">
                       {exercise.sets && `${exercise.sets} sets`}
                       {exercise.duration && ` • ${exercise.duration}`}
@@ -145,15 +164,18 @@ export default function Profile() {
               </div>
             </div>
           )}
-
+  
           {/* Main Workout Section */}
-          {exercises.mainWorkout && exercises.mainWorkout.length > 0 && (
+          {exercisesData.mainWorkout && exercisesData.mainWorkout.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-400 mb-2">Main Workout</h4>
               <div className="space-y-2">
-                {exercises.mainWorkout.map((exercise: any, index: number) => (
-                  <div key={`main-${index}`} className="p-3 rounded-lg border border-gray-800 bg-white-900/50">
-                    <p className="font-medium">{exercise.exercise}</p>
+                {exercisesData.mainWorkout.map((exercise: any, index: number) => (
+                  <div
+                    key={`main-${index}`}
+                    className="p-3 rounded-lg border border-gray-800 bg-white/50"
+                  >
+                    <p className="font-medium">{exercise.exercise || exercise.name}</p>
                     <p className="text-sm text-gray-400">
                       {exercise.sets && `${exercise.sets} sets`}
                       {exercise.reps && ` × ${exercise.reps} reps`}
@@ -167,15 +189,18 @@ export default function Profile() {
               </div>
             </div>
           )}
-
+  
           {/* Cooldown Section */}
-          {exercises.cooldown && exercises.cooldown.length > 0 && (
+          {exercisesData.cooldown && exercisesData.cooldown.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-400 mb-2">Cool-down</h4>
               <div className="space-y-2">
-                {exercises.cooldown.map((exercise: any, index: number) => (
-                  <div key={`cooldown-${index}`} className="p-3 rounded-lg border border-gray-800 bg-white-900/50">
-                    <p className="font-medium">{exercise.exercise}</p>
+                {exercisesData.cooldown.map((exercise: any, index: number) => (
+                  <div
+                    key={`cooldown-${index}`}
+                    className="p-3 rounded-lg border border-gray-800 bg-white/50"
+                  >
+                    <p className="font-medium">{exercise.exercise || exercise.name}</p>
                     <p className="text-sm text-gray-400">
                       {exercise.duration && exercise.duration}
                     </p>
@@ -191,6 +216,7 @@ export default function Profile() {
       return <p className="text-gray-400">Error loading exercise details</p>;
     }
   };
+  
 
   if (isLoading) {
     return (
@@ -494,7 +520,7 @@ export default function Profile() {
                 </div>
 
                 <button
-                  onClick={handleStartWorkout}
+                  onClick={() => handleStartWorkout(selectedWorkout)}
                   className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white font-medium p-4 rounded-lg hover:bg-blue-600 transition-colors"
                 >
                   <Play className="w-5 h-5" />
@@ -518,5 +544,4 @@ export default function Profile() {
     </div>
   )
 }
-
 
