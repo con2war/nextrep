@@ -1,58 +1,46 @@
+// /api/workouts/save.ts
 import { getSession } from '@auth0/nextjs-auth0'
 import { NextResponse } from 'next/server'
-import { prisma } from '../../../../lib/prisma'
+import { prisma } from '@/lib/prisma'
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    // Get authenticated user
     const session = await getSession()
     if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const data = await req.json()
-    
-    // First, ensure user exists in database
-    const user = await prisma.user.upsert({
-      where: {
-        id: session.user.sub,
-      },
-      update: {}, // No updates needed
-      create: {
-        id: session.user.sub,
-        email: session.user.email || '',
-        name: session.user.name || '',
-      },
-    })
+    const workout = await request.json()
+    console.log('API received workout:', workout) // Debug log
 
-    // Create the workout with complete data
-    const workout = await prisma.workout.create({
+    // Create the workout record
+    const savedWorkout = await prisma.workout.create({
       data: {
-        userId: user.id,
-        duration: data.duration,
-        type: data.type,
-        exercises: data.exercises, // This will store the complete exercises object
-        targetMuscles: data.targetMuscles,
-        difficulty: data.difficulty,
-      },
+        userId: session.user.sub,
+        type: workout.type,
+        duration: String(workout.duration), // Convert number to string
+        difficulty: workout.difficulty,
+        targetMuscles: workout.targetMuscles,
+        exercises: JSON.stringify(workout.exercises) // Store as JSON string
+      }
     })
 
-    // Add to favorites
-    await prisma.favoriteWorkout.create({
+    // Create a favorite record linking the user and the newly saved workout
+    const favoriteWorkout = await prisma.favoriteWorkout.create({
       data: {
-        userId: user.id,
-        workoutId: workout.id,
-      },
+        userId: session.user.sub,
+        workoutId: savedWorkout.id
+      }
     })
 
-    // Return complete workout data
-    return NextResponse.json({
-      ...workout,
-      exercises: data.exercises, // Include complete exercises data
-      targetMuscles: data.targetMuscles,
-    })
-  } catch (error) {
-    console.error('Error saving workout:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.log('Saved workout and favorite:', { savedWorkout, favoriteWorkout })
+
+    return NextResponse.json(savedWorkout)
+  } catch (error: any) {
+    console.error('Server error:', error) // Log the actual error
+    return NextResponse.json(
+      { error: 'Failed to save workout', details: error.message },
+      { status: 500 }
+    )
   }
-} 
+}
