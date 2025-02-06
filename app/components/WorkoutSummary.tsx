@@ -6,28 +6,57 @@ import { useRouter } from "next/navigation"
 import { useUser } from '@auth0/nextjs-auth0/client'
 import { useState } from 'react'
 
-interface WorkoutSummaryProps {
-  isOpen: boolean
-  onClose: () => void
-  onSave: () => void
-  onShare: () => void
-  workout: {
-    name: string
-    type: 'AMRAP' | 'EMOM' | 'TABATA' | 'FOR TIME' | 'DAILY'
-    exercises: Array<{
-      name: string
-      reps?: number
-      weight?: number
-      distance?: number
-      calories?: number
-      section?: string
-    }>
-    targetMuscles?: string[]
-    difficulty?: string
-  }
-  duration: number // in seconds
-  completedAt: Date
+interface Exercise {
+  exercise: string
+  name?: string
+  sets?: number
+  reps?: number | string
+  weight?: number
+  duration?: string
+  rest?: string
+  notes?: string
+  type?: string
+  completed?: number
+  section?: string
 }
+
+interface WorkoutSummaryProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: () => void;
+  onShare: () => void;
+  workout: {
+    name: string;
+    type: 'AMRAP' | 'EMOM' | 'TABATA' | 'FOR TIME' | 'DAILY';
+    warmup?: Exercise[];
+    mainWorkout?: Exercise[];
+    cooldown?: Exercise[];
+    // Allow exercises to be either a flattened array or a structured object
+    exercises?: 
+      | {
+          warmup: Exercise[];
+          mainWorkout: Exercise[];
+          cooldown: Exercise[];
+        }
+      | {
+          name: string;
+          sets?: number;
+          reps?: number;
+          weight?: number;
+          distance?: number;
+          calories?: number;
+          section?: string;
+          duration?: string;
+          type?: string;
+          notes?: string;
+        }[];
+    targetMuscles?: string[];
+    difficulty?: string;
+  };
+  duration: number;
+  completedAt: Date;
+}
+
 
 export default function WorkoutSummary({
   isOpen,
@@ -50,38 +79,68 @@ export default function WorkoutSummary({
 
     setIsSaving(true)
     try {
-      // Structure the exercises data with sections
-      const structuredExercises = workout.exercises.map(exercise => ({
-        ...exercise,
-        section: exercise.section || 'mainWorkout', // Default to mainWorkout if no section specified
-      }))
+      console.log('Raw workout prop:', workout) // Debug the incoming workout data
+      console.log('Warmup:', workout.warmup)
+      console.log('Main workout:', workout.mainWorkout)
+      console.log('Cooldown:', workout.cooldown)
+
+      // Ensure we have the exercises in the correct structure
+      const formattedExercises = {
+        warmup: Array.isArray(workout.warmup) ? workout.warmup.map(ex => ({
+          name: ex.exercise || ex.name,
+          sets: Number(ex.sets) || 0,
+          reps: ex.reps || '',
+          weight: Number(ex.weight) || 0,
+          duration: ex.duration || '',
+          rest: ex.rest || '',
+          notes: ex.notes || '',
+          type: ex.type || 'regular'
+        })) : [],
+        mainWorkout: Array.isArray(workout.mainWorkout) ? workout.mainWorkout.map(ex => ({
+          name: ex.exercise || ex.name,
+          sets: Number(ex.sets) || 0,
+          reps: ex.reps || '',
+          weight: Number(ex.weight) || 0,
+          duration: ex.duration || '',
+          rest: ex.rest || '',
+          notes: ex.notes || '',
+          type: ex.type || 'regular'
+        })) : [],
+        cooldown: Array.isArray(workout.cooldown) ? workout.cooldown.map(ex => ({
+          name: ex.exercise || ex.name,
+          sets: Number(ex.sets) || 0,
+          reps: ex.reps || '',
+          weight: Number(ex.weight) || 0,
+          duration: ex.duration || '',
+          rest: ex.rest || '',
+          notes: ex.notes || '',
+          type: ex.type || 'regular'
+        })) : []
+      }
+
+      console.log('Formatted exercises:', formattedExercises) // Debug the formatted data
+
+      const workoutData = {
+        name: workout.name || 'Daily Workout',
+        type: workout.type || 'DAILY',
+        duration: String(duration),
+        difficulty: workout.difficulty || 'medium',
+        targetMuscles: workout.targetMuscles || [],
+        exercises: formattedExercises
+      }
+
+      console.log('Final workout data:', workoutData)
 
       const response = await fetch('/api/workouts/save', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: workout.type,
-          duration: formatDuration(duration),
-          exercises: structuredExercises,
-          targetMuscles: workout.targetMuscles || [],
-          difficulty: workout.difficulty || 'medium',
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(workoutData)
       })
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          router.push('/api/auth/login')
-          return
-        }
-        throw new Error('Failed to save workout')
-      }
-
-      const savedWorkout = await response.json()
+      if (!response.ok) throw new Error('Failed to save workout')
       
-      if (onSave) onSave()
       alert('Workout saved successfully!')
+      router.push('/profile')
     } catch (error) {
       console.error('Error saving workout:', error)
       alert('Failed to save workout. Please try again.')
@@ -109,8 +168,11 @@ export default function WorkoutSummary({
           <div className="space-y-4">
             {/* Workout Details */}
             <div>
-              <h3 className="font-medium text-gray-900">{workout.name}</h3>
+              <h3 className="font-medium text-gray-900">{workout.name || workout.type}</h3>
               <p className="text-sm text-gray-500">{workout.type} Workout</p>
+              {workout.difficulty && (
+                <p className="text-sm text-gray-500">Difficulty: {workout.difficulty}</p>
+              )}
             </div>
 
             {/* Stats */}
@@ -127,23 +189,77 @@ export default function WorkoutSummary({
               </div>
             </div>
 
+            {/* Target Muscles */}
+            {workout.targetMuscles && workout.targetMuscles.length > 0 && (
+              <div>
+                <h3 className="font-medium mb-2">Target Muscles</h3>
+                <div className="flex flex-wrap gap-2">
+                  {workout.targetMuscles.map((muscle, index) => (
+                    <span key={index} className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-sm">
+                      {muscle}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Exercises */}
             <div>
               <h3 className="font-medium mb-2">Exercises</h3>
-              <ul className="space-y-2">
-                {workout.exercises.map((exercise, index) => (
-                  <li key={index} className="text-sm">
-                    <span className="font-medium">{exercise.name}</span>
-                    {exercise.reps && <span className="text-gray-500"> - {exercise.reps} reps</span>}
-                    {exercise.weight && <span className="text-gray-500"> @ {exercise.weight}kg</span>}
-                    {exercise.distance && <span className="text-gray-500"> - {exercise.distance}m</span>}
-                    {exercise.calories && <span className="text-gray-500"> - {exercise.calories} cals</span>}
-                  </li>
-                ))}
-              </ul>
+              
+              {/* Warmup */}
+              {workout.warmup && workout.warmup.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-gray-500 mb-2">Warm-up</h4>
+                  <ul className="space-y-2">
+                    {workout.warmup.map((exercise, index) => (
+                      <li key={index} className="text-sm bg-gray-50 p-2 rounded">
+                        <span className="font-medium">{exercise.exercise || exercise.name}</span>
+                        {exercise.sets && <span className="text-gray-500"> • {exercise.sets} sets</span>}
+                        {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Main Workout */}
+              {workout.mainWorkout && workout.mainWorkout.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-gray-500 mb-2">Main Workout</h4>
+                  <ul className="space-y-2">
+                    {workout.mainWorkout.map((exercise, index) => (
+                      <li key={index} className="text-sm bg-gray-50 p-2 rounded">
+                        <span className="font-medium">{exercise.exercise || exercise.name}</span>
+                        {exercise.sets && <span className="text-gray-500"> • {exercise.sets} sets</span>}
+                        {exercise.reps && <span className="text-gray-500"> • {exercise.reps}</span>}
+                        {exercise.rest && <span className="text-gray-500"> • Rest: {exercise.rest}</span>}
+                        {exercise.notes && (
+                          <p className="text-xs text-gray-500 mt-1 italic">{exercise.notes}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Cooldown */}
+              {workout.cooldown && workout.cooldown.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500 mb-2">Cool-down</h4>
+                  <ul className="space-y-2">
+                    {workout.cooldown.map((exercise, index) => (
+                      <li key={index} className="text-sm bg-gray-50 p-2 rounded">
+                        <span className="font-medium">{exercise.exercise || exercise.name}</span>
+                        {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
-            {/* Updated Action Buttons */}
+            {/* Action Buttons */}
             <div className="grid grid-cols-3 gap-3 pt-4">
               <button
                 onClick={handleSave}
