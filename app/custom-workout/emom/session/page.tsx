@@ -46,7 +46,6 @@ interface SaveWorkoutPayload {
 }
 
 export default function EmomSession({
-  onComplete, // Optional callback prop
 }: {
   onComplete?: (summary: SaveWorkoutPayload) => void;
 }) {
