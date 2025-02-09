@@ -276,7 +276,9 @@ export default function AmrapSession() {
         </div>
 
         {/* Workout Name */}
-        <h1 className="text-3xl font-bold mb-4 text-center">{workout.name}</h1>
+        <h1 className="text-3xl font-bold mb-4 text-center">
+          {workout?.name || "AMRAP Workout"}
+        </h1>
 
         {/* Timer Display */}
         <div className="text-center mb-8">
