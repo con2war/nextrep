@@ -13,8 +13,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import WorkoutCountdown from "@/app/components/WorkoutCountdown";
+import WorkoutSummary from "@/app/components/WorkoutSummary";
 import { formatDistanceToNow } from "date-fns";
-import { formatTime } from "@/app/utils/formatTime";
+
+// Helper to format seconds as mm:ss.
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+};
 
 interface Exercise {
   id: string;
@@ -33,6 +40,8 @@ interface EmomWorkout {
   intervalUnit: "seconds" | "minutes";
   roundsPerMovement: number;
   exercises: Exercise[];
+  difficulty?: string;
+  targetMuscles?: string[];
 }
 
 export default function EmomSession() {
@@ -44,19 +53,25 @@ export default function EmomSession() {
   const [currentExercise, setCurrentExercise] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [showCountdown, setShowCountdown] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
   const [completedAt, setCompletedAt] = useState<Date | null>(null);
   const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
 
-  // Initialize beep sound on mount
+  // Initialize beep sound once on mount.
   useEffect(() => {
     const audio = new Audio("/beep.mp3");
     audio.volume = 0.5;
     audio.preload = "auto";
-    audio.load();
-    setBeepSound(audio);
+    try {
+      audio.load();
+      setBeepSound(audio);
+    } catch (error) {
+      console.error("Error loading audio:", error);
+    }
   }, []);
 
+  // Helper: Speak a message.
   const speak = (text: string) => {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
@@ -66,37 +81,35 @@ export default function EmomSession() {
     }
   };
 
-  // Load workout data from localStorage on mount
+  // Load the EMOM workout from localStorage on mount.
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentEmomWorkout");
     if (savedWorkout) {
-      const parsedWorkout = JSON.parse(savedWorkout);
-      setWorkout(parsedWorkout);
-      setTimeRemaining(parsedWorkout.intervalTime);
+      const parsed = JSON.parse(savedWorkout) as EmomWorkout;
+      setWorkout(parsed);
+      setTimeRemaining(parsed.intervalTime);
     } else {
       router.push("/custom-workout/emom");
     }
   }, [router]);
 
-  // Simple timer logic
+  // Timer effect: decrease timeRemaining every second.
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+    let timer: NodeJS.Timeout;
     if (isRunning && workout) {
-      intervalId = setInterval(() => {
+      timer = setInterval(() => {
         setTimeRemaining((prev) => {
           const newTime = prev - 1;
+          const totalRounds = workout.roundsPerMovement * workout.exercises.length;
           if (newTime <= 0) {
-            // End of interval; if finished all rounds, complete workout
-            if (currentRound === workout.roundsPerMovement * workout.exercises.length) {
-              setIsRunning(false);
-              setIsPaused(true);
-              setCompletedAt(new Date());
-              speak("Well Done");
+            if (currentRound >= totalRounds) {
+              handleComplete();
               return 0;
             } else {
               setCurrentRound(currentRound + 1);
-              setCurrentExercise((currentExercise + 1) % workout.exercises.length);
-              speak(`Next up: ${workout.exercises[(currentExercise + 1) % workout.exercises.length].name}`);
+              const nextIdx = (currentExercise + 1) % workout.exercises.length;
+              setCurrentExercise(nextIdx);
+              speak(`Next up: ${workout.exercises[nextIdx].name}`);
               return workout.intervalTime;
             }
           }
@@ -104,34 +117,53 @@ export default function EmomSession() {
         });
       }, 1000);
     }
-    return () => clearInterval(intervalId);
+    return () => clearInterval(timer);
   }, [isRunning, workout, currentRound, currentExercise]);
 
-  const startWorkout = () => {
-    if (isRunning) {
-      setIsRunning(false);
-      setIsPaused(true);
+  // Start/resume/pause the workout.
+  const startOrToggleWorkout = () => {
+    if (!isRunning && !isPaused) {
+      // First press: show countdown.
+      setShowCountdown(true);
     } else if (isPaused) {
       setIsRunning(true);
       setIsPaused(false);
     } else {
-      setShowCountdown(true);
+      setIsRunning(false);
+      setIsPaused(true);
     }
   };
 
+  // Callback when the countdown completes.
+  const handleCountdownComplete = () => {
+    setShowCountdown(false);
+    setIsRunning(true);
+    setIsPaused(false);
+    speak("Let's Go");
+  };
+
+  // End workout: stop timer, cancel vocals, record completion, show summary modal.
+  const handleComplete = () => {
+    setIsRunning(false);
+    setIsPaused(true);
+    window.speechSynthesis.cancel();
+    setCompletedAt(new Date());
+    speak("Well Done");
+    setShowSummary(true);
+  };
+
+  // Toggle audio on/off.
   const toggleAudio = () => {
     setIsAudioEnabled(!isAudioEnabled);
   };
 
-  // When user clicks "Start Workout" at the end, save the workout and navigate.
+  // When the user clicks the "Start Workout" button in the summary modal,
+  // save the workout details and restart the session.
   const handleStartWorkout = () => {
     if (!workout) return;
-    // Save the workout data (including unique fields) to localStorage.
     localStorage.setItem("selectedWorkout", JSON.stringify(workout));
-    // For EMOM workouts, navigate to the EMOM session page.
     router.push("/custom-workout/emom/session");
   };
-
 
   if (!workout) return null;
 
@@ -149,16 +181,11 @@ export default function EmomSession() {
             Exit Workout
           </Link>
           <button
-            onClick={() => {
-              setIsRunning(false);
-              setIsPaused(true);
-              setCompletedAt(new Date());
-              speak("Well Done");
-            }}
-            className="text-gray-600 hover:text-red-500 transition-colors flex items-center gap-2"
+            onClick={handleComplete}
+            className="flex items-center text-red-500 hover:text-red-600 transition-colors"
           >
             <span>End Workout</span>
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 ml-1" />
           </button>
         </div>
 
@@ -167,21 +194,31 @@ export default function EmomSession() {
           <h1 className="text-3xl font-bold">{workout.name}</h1>
         </div>
 
-        {/* Timer and Round Info */}
+        {/* Timer & Round Info */}
         <div className="text-center mb-8">
           <div
             className={`text-6xl font-mono font-bold mb-4 ${
               timeRemaining <= 3 ? "text-red-500" : ""
             }`}
           >
-            {showCountdown ? "Countdown..." : formatTime(timeRemaining)}
+            {showCountdown ? (
+              <WorkoutCountdown
+                onComplete={handleCountdownComplete}
+                onStart={() => {
+                  setIsRunning(false);
+                  setIsPaused(false);
+                }}
+              />
+            ) : (
+              formatTime(timeRemaining)
+            )}
           </div>
           <div className="text-lg font-medium text-gray-600 mb-4">
             Round {currentRound} of {workout.roundsPerMovement * workout.exercises.length}
           </div>
           <div className="flex justify-center gap-4 items-center">
             <button
-              onClick={startWorkout}
+              onClick={startOrToggleWorkout}
               className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
             >
               {isRunning ? (
@@ -230,17 +267,48 @@ export default function EmomSession() {
           </div>
         </div>
 
-        {/* Single Action Button */}
-        <div className="mt-8">
-          <button
-            onClick={handleStartWorkout}
-            className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white font-medium p-4 rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            <Play className="w-5 h-5" />
-            Start Workout
-          </button>
-        </div>
+        {/* End-of-Workout Summary Modal using WorkoutSummary with hideActions */}
+        {showSummary && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <WorkoutSummary
+                  isOpen={true}
+                  onClose={() => setShowSummary(false)}
+                  onSave={() => {}}
+                  onShare={() => {}}
+                  hideActions={true}
+                  workout={{
+                    name: workout.name,
+                    type: "EMOM",
+                    exercises: workout.exercises,
+                    difficulty: workout.difficulty,
+                    targetMuscles: workout.targetMuscles,
+                    intervalTime: workout.intervalTime,
+                    roundsPerMovement: workout.roundsPerMovement,
+                  }}
+                  duration={timeRemaining}
+                  completedAt={completedAt || new Date()}
+                />
+                <div className="mt-6">
+                  <button
+                    onClick={() => {
+                      setShowSummary(false);
+                      handleStartWorkout();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white font-medium p-4 rounded-lg hover:bg-blue-600 transition-colors"
+                  >
+                    <Play className="w-5 h-5" />
+                    Start Workout
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
 }
+
+
