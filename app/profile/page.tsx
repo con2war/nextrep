@@ -109,11 +109,22 @@ export default function Profile() {
     }
   }, [user])
 
-  // When a favorited workout is clicked, store it as selected and open the modal.
   const handleWorkoutClick = (workout: SavedWorkout) => {
-    setSelectedWorkout(workout)
-    setIsModalOpen(true)
-  }
+    if (
+      workout.type === "DAILY" &&
+      workout.exercises &&
+      typeof workout.exercises === "object"
+    ) {
+      // Unpack the combined object so that warmup, mainWorkout, and cooldown
+      // are available as top-level keys.
+      workout.warmup = workout.exercises.warmup;
+      workout.mainWorkout = workout.exercises.mainWorkout;
+      workout.cooldown = workout.exercises.cooldown;
+    }
+    setSelectedWorkout(workout);
+    setIsModalOpen(true);
+  };
+  
 
   // Format and save the workout data, then navigate to the proper session page.
   const handleStartWorkout = (workout: SavedWorkout) => {
@@ -136,12 +147,31 @@ export default function Profile() {
         restTime: workout.restTime ?? 0,
         rounds: workout.rounds ?? 0,
       }
-      localStorage.setItem('selectedWorkout', JSON.stringify(formattedWorkout))
+      if (workout.type === "DAILY") {
+        // When the workout is DAILY, ensure the combined exercises object is set.
+        formattedWorkout.exercises = {
+          warmup: workout.warmup || [],
+          mainWorkout: workout.mainWorkout || [],
+          cooldown: workout.cooldown || [],
+        };
+      }
+  
+      localStorage.setItem("selectedWorkout", JSON.stringify(formattedWorkout));
 
       // If it's an EMOM workout, navigate to the EMOM session page.
       if (workout.type === 'EMOM') {
-        router.push('/emom/session')
-      } else {
+        router.push('custom-workout/emom/session')
+      }
+      else if (workout.type === 'AMRAP') {
+        router.push('custom-workout/amrap/session')
+      }
+      else if (workout.type === 'TABATA') {
+        router.push('custom-workout/tabata/session')
+      }
+      else if (workout.type === 'FOR TIME') {
+        router.push('custom-workout/for-time/session')
+      }
+      else {
         // For all other workout types, navigate to the standard workout session page.
         router.push('/daily-workout')
       }

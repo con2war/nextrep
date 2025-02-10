@@ -11,12 +11,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import WorkoutCountdown from "@/app/components/WorkoutCountdown";
 import WorkoutSummary from "@/app/components/WorkoutSummary";
 import { formatDistanceToNow } from "date-fns";
 
-// Helper to format seconds as mm:ss.
+// Helper function to format seconds as mm:ss.
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -142,7 +141,7 @@ export default function EmomSession() {
     speak("Let's Go");
   };
 
-  // End workout: stop timer, cancel vocals, record completion, show summary modal.
+  // End workout: stop timer, cancel vocals, record completion, and show the summary modal.
   const handleComplete = () => {
     setIsRunning(false);
     setIsPaused(true);
@@ -267,17 +266,17 @@ export default function EmomSession() {
           </div>
         </div>
 
-        {/* End-of-Workout Summary Modal using WorkoutSummary with hideActions */}
+        {/* End-of-Workout Summary Modal */}
         {showSummary && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6">
+                {/* Render WorkoutSummary WITHOUT hideActions so default Save/Share/Exit buttons appear */}
                 <WorkoutSummary
                   isOpen={true}
                   onClose={() => setShowSummary(false)}
                   onSave={() => {}}
                   onShare={() => {}}
-                  hideActions={true}
                   workout={{
                     name: workout.name,
                     type: "EMOM",
@@ -290,18 +289,6 @@ export default function EmomSession() {
                   duration={timeRemaining}
                   completedAt={completedAt || new Date()}
                 />
-                <div className="mt-6">
-                  <button
-                    onClick={() => {
-                      setShowSummary(false);
-                      handleStartWorkout();
-                    }}
-                    className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white font-medium p-4 rounded-lg hover:bg-blue-600 transition-colors"
-                  >
-                    <Play className="w-5 h-5" />
-                    Start Workout
-                  </button>
-                </div>
               </div>
             </div>
           </div>

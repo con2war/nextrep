@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from "react";
 import {
   CheckCircle,
   X,
@@ -10,40 +10,41 @@ import {
   Play,
   Volume2,
   VolumeX
-} from 'lucide-react'
-import Image from 'next/image'
-import { useRouter } from 'next/navigation'
-import WorkoutSummary from "@/app/components/WorkoutSummary"
-import WorkoutCountdown from "@/app/components/WorkoutCountdown"
+} from "lucide-react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import WorkoutSummary from "@/app/components/WorkoutSummary";
+import WorkoutCountdown from "@/app/components/WorkoutCountdown";
 
 interface Exercise {
-  exercise: string
-  name?: string
-  sets?: number
-  reps?: string | number
-  duration?: string
-  rest?: string
-  notes?: string
-  type?: string
-  completed?: number
-  weight?: number
+  exercise: string;
+  name?: string;
+  sets?: number;
+  reps?: string | number;
+  duration?: string;
+  rest?: string;
+  notes?: string;
+  type?: string;
+  completed?: number;
+  weight?: number;
 }
 
 interface WorkoutData {
-  name?: string
-  warmup: Exercise[]
-  mainWorkout: Exercise[]
-  cooldown: Exercise[]
-  duration: string
-  difficulty: string
-  targetMuscles: string[]
-  type: string
-  timePerExercise?: number
+  name?: string;
+  warmup: Exercise[];
+  mainWorkout: Exercise[];
+  cooldown: Exercise[];
+  duration: string;
+  difficulty: string;
+  targetMuscles: string[];
+  type: string;
+  timePerExercise?: number;
+  // In the saved object, daily workouts may come with a combined exercises object.
   exercises?: {
-    warmup: Exercise[]
-    mainWorkout: Exercise[]
-    cooldown: Exercise[]
-  }
+    warmup: Exercise[];
+    mainWorkout: Exercise[];
+    cooldown: Exercise[];
+  };
 }
 
 type ExerciseSection = 'warmup' | 'mainWorkout' | 'cooldown';
@@ -58,22 +59,23 @@ export default function WorkoutSession({
   workout,
   onComplete
 }: {
-  workout: WorkoutData
-  onComplete: (summary: any) => void
+  workout: WorkoutData;
+  onComplete: (summary: any) => void;
 }) {
-  const router = useRouter()
-  const [timer, setTimer] = useState(0)
-  const [isRunning, setIsRunning] = useState(false)
-  const [isPaused, setIsPaused] = useState(false)
-  const [showCountdown, setShowCountdown] = useState(false)
-  const [hasAnnouncedStart, setHasAnnouncedStart] = useState(false)
-  const [showSummary, setShowSummary] = useState(false)
-  const [completedAt, setCompletedAt] = useState<Date | null>(null)
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true)
+  const router = useRouter();
+  const [timer, setTimer] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showCountdown, setShowCountdown] = useState(false);
+  const [hasAnnouncedStart, setHasAnnouncedStart] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [completedAt, setCompletedAt] = useState<Date | null>(null);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
 
-  // Initialize exercises from the workout data or workout.exercises if available
+  // Initialize exercises from the workout data.
   const [exercises, setExercises] = useState<ExercisesState>(() => {
-    const workoutExercises = workout.exercises || workout
+    // On initial render, use the provided workout object.
+    const workoutExercises = workout.exercises || workout;
     return {
       warmup: (workoutExercises.warmup || []).map((ex: Exercise) => ({
         ...ex,
@@ -90,35 +92,39 @@ export default function WorkoutSession({
         completed: ex.completed || 0,
         weight: ex.weight || 0
       }))
-    }
-  })
+    };
+  });
 
-  // Timer effect
+  // Timer effect.
   useEffect(() => {
-    let timerId: NodeJS.Timeout | undefined = undefined
-
+    let timerId: NodeJS.Timeout | undefined;
     if (isRunning && !isPaused) {
       timerId = setInterval(() => {
-        setTimer(prev => prev + 1)
-      }, 1000)
+        setTimer(prev => prev + 1);
+      }, 1000);
     }
-
     return () => {
-      if (timerId) {
-        clearInterval(timerId)
-      }
-    }
-  }, [isRunning, isPaused])
+      if (timerId) clearInterval(timerId);
+    };
+  }, [isRunning, isPaused]);
 
+  // Load the saved workout from localStorage on mount.
   useEffect(() => {
     const savedWorkout = localStorage.getItem('selectedWorkout');
     if (savedWorkout) {
       const parsedWorkout = JSON.parse(savedWorkout);
       console.log("WorkoutSession parsedWorkout:", parsedWorkout);
-      console.log("Rendering exercise sections with:", exercises);// Check full object in console
+      // If there's an "exercises" property, use it.
       if (parsedWorkout.exercises) {
-        console.log("Parsed exercises:", parsedWorkout.exercises);
         setExercises(parsedWorkout.exercises);
+      }
+      // Otherwise, if top-level keys exist, combine them.
+      else if (parsedWorkout.warmup || parsedWorkout.mainWorkout || parsedWorkout.cooldown) {
+        setExercises({
+          warmup: parsedWorkout.warmup || [],
+          mainWorkout: parsedWorkout.mainWorkout || [],
+          cooldown: parsedWorkout.cooldown || []
+        });
       } else {
         console.warn("No exercises property in parsedWorkout!");
       }
@@ -131,50 +137,43 @@ export default function WorkoutSession({
   console.log("Exercises state in WorkoutSession:", exercises);
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const handleSetComplete = (section: ExerciseSection, exerciseIndex: number) => {
     setExercises(prev => ({
       ...prev,
       [section]: prev[section].map((ex, i) => {
         if (i === exerciseIndex && (ex.completed || 0) < (ex.sets || 0)) {
-          return {
-            ...ex,
-            completed: (ex.completed || 0) + 1
-          }
+          return { ...ex, completed: (ex.completed || 0) + 1 };
         }
-        return ex
+        return ex;
       })
-    }))
-  }
+    }));
+  };
 
   const handleWeightChange = (section: ExerciseSection, exerciseIndex: number, change: number) => {
     setExercises(prev => ({
       ...prev,
       [section]: prev[section].map((ex, i) =>
-        i === exerciseIndex
-          ? { ...ex, weight: Math.max(0, (ex.weight || 0) + change) }
-          : ex
+        i === exerciseIndex ? { ...ex, weight: Math.max(0, (ex.weight || 0) + change) } : ex
       )
-    }))
-  }
+    }));
+  };
 
-  // Updated speech synthesis function
+  // Updated speech synthesis function.
   const speak = (text: string) => {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
-      const utterance = new SpeechSynthesisUtterance(text)
-
-      let voices = window.speechSynthesis.getVoices()
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      let voices = window.speechSynthesis.getVoices();
       if (voices.length === 0) {
         window.speechSynthesis.addEventListener('voiceschanged', () => {
-          voices = window.speechSynthesis.getVoices()
-        })
+          voices = window.speechSynthesis.getVoices();
+        });
       }
-
       const preferredVoice = voices.find(
         voice =>
           (voice.name.includes('Male') ||
@@ -182,47 +181,38 @@ export default function WorkoutSession({
             voice.name.includes('David') ||
             voice.name.includes('James')) &&
           (voice.lang.includes('en-US') || voice.lang.includes('en-GB'))
-      )
-
+      );
       if (preferredVoice) {
-        utterance.voice = preferredVoice
+        utterance.voice = preferredVoice;
       }
-
-      utterance.pitch = 1.1
-      utterance.rate = 1.2
-      utterance.volume = 1.5
-
-      if (text === "Let's Go" || text === "Well Done" || text === "Half way") {
-        utterance.pitch = 1.2
-        utterance.rate = 1.3
-        utterance.volume = 2.0
-      }
-
-      window.speechSynthesis.speak(utterance)
+      utterance.pitch = 1.1;
+      utterance.rate = 1.2;
+      utterance.volume = 1.5;
+      window.speechSynthesis.speak(utterance);
     }
-  }
+  };
 
   const handleComplete = () => {
-    setIsRunning(false)
-    setCompletedAt(new Date())
-    speak("Well Done")
-    setShowSummary(true)
-  }
+    setIsRunning(false);
+    setCompletedAt(new Date());
+    speak("Well Done");
+    setShowSummary(true);
+  };
 
-  // Use the updated exercises state when saving
   const handleSave = async () => {
-    console.log('Saving workout...')
-    setShowSummary(false)
+    console.log('Saving workout...');
+    setShowSummary(false);
+    // Pass the structured exercises object.
     onComplete({
       duration: formatTime(timer),
-      exercises: { // Preserve the structured object
+      exercises: {
         warmup: exercises.warmup,
         mainWorkout: exercises.mainWorkout,
         cooldown: exercises.cooldown
       },
       completedAt: completedAt
-    })
-  }
+    });
+  };
 
   const handleShare = async () => {
     try {
@@ -230,21 +220,21 @@ export default function WorkoutSession({
         title: workout.name || 'Daily Workout',
         text: `I completed my daily workout in ${formatTime(timer)}!`,
         url: window.location.href
-      }
+      };
 
       if (navigator.share) {
-        await navigator.share(shareData)
+        await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(
           `${shareData.title}\n${shareData.text}\n${shareData.url}`
-        )
-        alert('Workout details copied to clipboard!')
+        );
+        alert('Workout details copied to clipboard!');
       }
     } catch (error) {
-      console.error('Error sharing:', error)
+      console.error('Error sharing:', error);
     }
-    setShowSummary(false)
-  }
+    setShowSummary(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -262,9 +252,9 @@ export default function WorkoutSession({
           </div>
           <button
             onClick={() => {
-              setCompletedAt(new Date())
-              setShowSummary(true)
-              speak("Well Done")
+              setCompletedAt(new Date());
+              setShowSummary(true);
+              speak("Well Done");
             }}
             className="text-gray-600 hover:text-red-500 transition-colors flex items-center gap-2"
           >
@@ -279,14 +269,14 @@ export default function WorkoutSession({
             {showCountdown ? (
               <WorkoutCountdown
                 onComplete={() => {
-                  setShowCountdown(false)
-                  setIsRunning(true)
-                  setIsPaused(false)
-                  speak("Let's Go")
+                  setShowCountdown(false);
+                  setIsRunning(true);
+                  setIsPaused(false);
+                  speak("Let's Go");
                 }}
                 onStart={() => {
-                  setIsRunning(false)
-                  setIsPaused(false)
+                  setIsRunning(false);
+                  setIsPaused(false);
                 }}
               />
             ) : (
@@ -297,10 +287,10 @@ export default function WorkoutSession({
             <button
               onClick={() => {
                 if (!isRunning && !isPaused) {
-                  setShowCountdown(true)
+                  setShowCountdown(true);
                 } else {
-                  setIsRunning(!isRunning)
-                  setIsPaused(!isPaused)
+                  setIsRunning(!isRunning);
+                  setIsPaused(!isPaused);
                 }
               }}
               className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
@@ -313,16 +303,17 @@ export default function WorkoutSession({
               ) : (
                 <>
                   <Play className="w-5 h-5" />
-                  {isPaused ? 'Resume' : 'Start'}
+                  {isPaused ? "Resume" : "Start"}
                 </>
               )}
             </button>
             <button
               onClick={() => setIsAudioEnabled(!isAudioEnabled)}
-              className={`p-3 rounded-lg ${isAudioEnabled
-                ? 'bg-green-500 hover:bg-green-600'
-                : 'bg-red-500 hover:bg-red-600'
-                } text-white transition-colors`}
+              className={`p-3 rounded-lg ${
+                isAudioEnabled
+                  ? 'bg-green-500 hover:bg-green-600'
+                  : 'bg-red-500 hover:bg-red-600'
+              } text-white transition-colors`}
             >
               {isAudioEnabled ? (
                 <Volume2 className="w-5 h-5" />
@@ -341,98 +332,95 @@ export default function WorkoutSession({
                 {section.replace(/([A-Z])/g, ' $1').trim()}
               </h3>
               <div className="space-y-4">
-                {sectionExercises.map((exercise: Exercise, index: number) => {
-                  console.log("Exercise at index", index, exercise);
-                  return (
-                    <div
-                      key={index}
-                      className="bg-white rounded-xl border border-gray-200 shadow-sm hover:border-blue-200 transition-colors overflow-hidden"
-                    >
-                      <div className="p-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4
-
-                            >
-                              {exercise.exercise || exercise.name || "Unnamed"}
-                            </h4>
-
-                            <div className="flex flex-wrap gap-3 mt-2">
-                              {exercise.sets && (
-                                <span className="text-sm text-gray-600">
-                                  {exercise.sets} sets
-                                </span>
-                              )}
-                              {exercise.reps && (
-                                <span className="text-sm text-gray-600">
-                                  {exercise.reps} reps
-                                </span>
-                              )}
-                              {exercise.duration && (
-                                <span className="text-sm text-gray-600">
-                                  {exercise.duration}
-                                </span>
-                              )}
-                              {exercise.rest && (
-                                <span className="text-sm text-gray-600">
-                                  Rest: {exercise.rest}
-                                </span>
-                              )}
-                            </div>
-                            {exercise.notes && (
-                              <p className="text-sm text-gray-500 mt-2">{exercise.notes}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
+                {sectionExercises.map((exercise: Exercise, index: number) => (
+                  <div
+                    key={index}
+                    className="bg-white rounded-xl border border-gray-200 shadow-sm hover:border-blue-200 transition-colors overflow-hidden"
+                  >
+                    <div className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4>{exercise.name || exercise.exercise || "Unnamed"}</h4>
+                          <div className="flex flex-wrap gap-3 mt-2">
                             {exercise.sets && (
-                              <span
-                                className={`text-sm font-medium ${exercise.completed === exercise.sets
-                                  ? 'text-green-600'
-                                  : 'text-blue-600'
-                                  }`}
-                              >
-                                {exercise.completed || 0}/{exercise.sets}
+                              <span className="text-sm text-gray-600">
+                                {exercise.sets} sets
                               </span>
                             )}
-                            <button
-                              onClick={() => handleSetComplete(section as ExerciseSection, index)}
-                              className={`p-2 rounded-full transition-colors ${exercise.completed === exercise.sets
+                            {exercise.reps && (
+                              <span className="text-sm text-gray-600">
+                                {exercise.reps} reps
+                              </span>
+                            )}
+                            {exercise.duration && (
+                              <span className="text-sm text-gray-600">
+                                {exercise.duration}
+                              </span>
+                            )}
+                            {exercise.rest && (
+                              <span className="text-sm text-gray-600">
+                                Rest: {exercise.rest}
+                              </span>
+                            )}
+                          </div>
+                          {exercise.notes && (
+                            <p className="text-sm text-gray-500 mt-2">{exercise.notes}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {exercise.sets && (
+                            <span
+                              className={`text-sm font-medium ${
+                                exercise.completed === exercise.sets
+                                  ? 'text-green-600'
+                                  : 'text-blue-600'
+                              }`}
+                            >
+                              {exercise.completed || 0}/{exercise.sets}
+                            </span>
+                          )}
+                          <button
+                            onClick={() =>
+                              handleSetComplete(section as ExerciseSection, index)
+                            }
+                            className={`p-2 rounded-full transition-colors ${
+                              exercise.completed === exercise.sets
                                 ? 'hover:bg-green-50'
                                 : 'hover:bg-blue-50'
-                                }`}
-                            >
-                              <CheckCircle
-                                className={`w-5 h-5 ${exercise.completed === exercise.sets
+                            }`}
+                          >
+                            <CheckCircle
+                              className={`w-5 h-5 ${
+                                exercise.completed === exercise.sets
                                   ? 'text-green-500 fill-green-500'
                                   : 'text-gray-400'
-                                  }`}
-                              />
-                            </button>
-                          </div>
+                              }`}
+                            />
+                          </button>
                         </div>
-                        {exercise.type !== 'bodyweight' && (
-                          <div className="flex items-center gap-2 mt-3 bg-gray-50 rounded-lg p-2">
-                            <button
-                              onClick={() => handleWeightChange(section as ExerciseSection, index, -2.5)}
-                              className="p-1.5 rounded-md hover:bg-white transition-colors text-gray-600"
-                            >
-                              <Minus className="w-4 h-4" />
-                            </button>
-                            <span className="text-sm font-medium text-gray-900 min-w-[50px] text-center">
-                              {exercise.weight}kg
-                            </span>
-                            <button
-                              onClick={() => handleWeightChange(section as ExerciseSection, index, 2.5)}
-                              className="p-1.5 rounded-md hover:bg-white transition-colors text-gray-600"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
                       </div>
+                      {exercise.type !== 'bodyweight' && (
+                        <div className="flex items-center gap-2 mt-3 bg-gray-50 rounded-lg p-2">
+                          <button
+                            onClick={() => handleWeightChange(section as ExerciseSection, index, -2.5)}
+                            className="p-1.5 rounded-md hover:bg-white transition-colors text-gray-600"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="text-sm font-medium text-gray-900 min-w-[50px] text-center">
+                            {exercise.weight}kg
+                          </span>
+                          <button
+                            onClick={() => handleWeightChange(section as ExerciseSection, index, 2.5)}
+                            className="p-1.5 rounded-md hover:bg-white transition-colors text-gray-600"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )
-                })}
+                  </div>
+                ))}
               </div>
             </section>
           ))}
@@ -450,12 +438,14 @@ export default function WorkoutSession({
             warmup: exercises.warmup,
             mainWorkout: exercises.mainWorkout,
             cooldown: exercises.cooldown,
-            // Remove the flattened exercises array so that the entire structure is saved.
+            // Note: We do not pass a flattened "exercises" property here,
+            // so that the WorkoutSummary component can render the daily sections.
           }}
           duration={timer}
           completedAt={completedAt || new Date()}
         />
       </main>
     </div>
-  )
+  );
 }
+

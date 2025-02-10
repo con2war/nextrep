@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { Share2, Save, Home } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -20,7 +20,7 @@ interface Exercise {
   section?: string;
 }
 
-interface WorkoutSummaryProps {
+export interface WorkoutSummaryProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
@@ -71,8 +71,15 @@ export default function WorkoutSummary({
     setIsSaving(true);
     try {
       console.log("Raw workout prop:", workout);
-      let formattedExercises;
-      if (
+      let formattedExercises: any;
+      if (workout.type === "DAILY") {
+        // For DAILY workouts, combine the structured exercises
+        formattedExercises = {
+          warmup: workout.warmup || [],
+          mainWorkout: workout.mainWorkout || [],
+          cooldown: workout.cooldown || [],
+        };
+      } else if (
         (workout.type === "EMOM" ||
           workout.type === "FOR TIME" ||
           workout.type === "AMRAP" ||
@@ -108,7 +115,7 @@ export default function WorkoutSummary({
       if (!response.ok) throw new Error("Failed to save workout");
       alert("Workout saved successfully!");
       router.push("/profile");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving workout:", error);
       alert("Failed to save workout. Please try again.");
     } finally {
@@ -118,7 +125,7 @@ export default function WorkoutSummary({
 
   if (!isOpen) return null;
 
-  const formatDuration = (seconds: number) => {
+  const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
@@ -140,7 +147,9 @@ export default function WorkoutSummary({
               </h3>
               <p className="text-sm text-gray-500">{workout.type} Workout</p>
               {workout.difficulty && (
-                <p className="text-sm text-gray-500">Difficulty: {workout.difficulty}</p>
+                <p className="text-sm text-gray-500">
+                  Difficulty: {workout.difficulty}
+                </p>
               )}
             </div>
 
@@ -151,9 +160,7 @@ export default function WorkoutSummary({
                 <p className="text-sm text-gray-500">
                   Work: {workout.workTime}s &nbsp; Rest: {workout.restTime}s
                 </p>
-                <p className="text-sm text-gray-500">
-                  Rounds: {workout.rounds}
-                </p>
+                <p className="text-sm text-gray-500">Rounds: {workout.rounds}</p>
               </div>
             )}
 
@@ -177,15 +184,6 @@ export default function WorkoutSummary({
                 <p className="text-sm text-gray-500">
                   Rounds per Movement: {workout.roundsPerMovement}
                 </p>
-                {workout.roundsPerMovement &&
-                  workout.exercises &&
-                  typeof workout.exercises === "string" && (
-                    <p className="text-sm text-gray-500">
-                      Total Rounds:{" "}
-                      {workout.roundsPerMovement *
-                        JSON.parse(workout.exercises).length}
-                    </p>
-                  )}
               </div>
             )}
 
@@ -280,7 +278,6 @@ export default function WorkoutSummary({
                 })()
               ) : workout.type === "DAILY" ? (
                 <>
-                  {/* Render DAILY workout sections (warmup, mainWorkout, cooldown) if available */}
                   {workout.warmup && workout.warmup.length > 0 && (
                     <div className="mb-4">
                       <h4 className="text-sm font-medium text-gray-500 mb-2">Warm-up</h4>
@@ -366,35 +363,38 @@ export default function WorkoutSummary({
               )}
             </div>
 
-            {/* Action Buttons */}
-            <div className="grid grid-cols-3 gap-3 pt-4">
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Save className="w-4 h-4" />
-                {isSaving ? "Saving..." : "Save"}
-              </button>
-              <button
-                onClick={onShare}
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-              >
-                <Share2 className="w-4 h-4" />
-                Share
-              </button>
-              <button
-                onClick={() => router.push("/")}
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
-              >
-                <Home className="w-4 h-4" />
-                Exit
-              </button>
-            </div>
+            {/* Default Action Buttons (only rendered when hideActions is false) */}
+            {!hideActions && (
+              <div className="grid grid-cols-3 gap-3 pt-4">
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSaving ? "Saving..." : "Save"}
+                </button>
+                <button
+                  onClick={onShare}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share
+                </button>
+                <button
+                  onClick={() => router.push("/")}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                >
+                  <Home className="w-4 h-4" />
+                  Exit
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 }
+
 
