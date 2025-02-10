@@ -30,61 +30,57 @@ export async function GET(req: Request) {
     const favorites = await prisma.favoriteWorkout.findMany({
       where: { userId: session.user.sub },
       include: {
-        workout: {
-          select: {
-            id: true,
-            type: true,
-            duration: true,
-            difficulty: true,
-            targetMuscles: true,
-            exercises: true,
-            createdAt: true,
-          },
-        },
+        workout: true
       },
       orderBy: { createdAt: 'desc' },
     });
 
     console.log('Raw favorites data:', JSON.stringify(favorites, null, 2));
 
-    const workouts = favorites.map((fav: FavoriteWithWorkout) => {
-      let parsedExercises;
+    const workouts = favorites.map((fav) => {
+      let exercisesData;
+      
       try {
-        parsedExercises =
-          typeof fav.workout.exercises === 'string'
-            ? JSON.parse(fav.workout.exercises)
-            : fav.workout.exercises;
+        // Parse exercises if it's a string
+        exercisesData = typeof fav.workout.exercises === 'string' 
+          ? JSON.parse(fav.workout.exercises)
+          : fav.workout.exercises;
       } catch (error) {
         console.error('Error parsing exercises:', error);
-        parsedExercises = {};
+        exercisesData = { warmup: [], mainWorkout: [], cooldown: [] };
       }
 
-      // For DAILY workouts, unpack the exercises object.
-      if (fav.workout.type === 'DAILY' && parsedExercises && typeof parsedExercises === 'object') {
+      // For DAILY workouts
+      if (fav.workout.type === 'DAILY') {
         return {
           id: fav.workout.id,
           type: fav.workout.type,
           duration: fav.workout.duration,
           difficulty: fav.workout.difficulty,
           targetMuscles: fav.workout.targetMuscles,
-          warmup: parsedExercises.warmup || [],
-          mainWorkout: parsedExercises.mainWorkout || [],
-          cooldown: parsedExercises.cooldown || [],
-          // Also include the full combined object (if needed)
-          exercises: parsedExercises,
           createdAt: fav.workout.createdAt.toISOString(),
-        };
-      } else {
-        return {
-          id: fav.workout.id,
-          type: fav.workout.type,
-          duration: fav.workout.duration,
-          difficulty: fav.workout.difficulty,
-          targetMuscles: fav.workout.targetMuscles,
-          exercises: parsedExercises,
-          createdAt: fav.workout.createdAt.toISOString(),
+          // Set both top-level arrays and nested exercises
+          warmup: exercisesData.warmup || [],
+          mainWorkout: exercisesData.mainWorkout || [],
+          cooldown: exercisesData.cooldown || [],
+          exercises: {
+            warmup: exercisesData.warmup || [],
+            mainWorkout: exercisesData.mainWorkout || [],
+            cooldown: exercisesData.cooldown || []
+          }
         };
       }
+
+      // For non-DAILY workouts
+      return {
+        id: fav.workout.id,
+        type: fav.workout.type,
+        duration: fav.workout.duration,
+        difficulty: fav.workout.difficulty,
+        targetMuscles: fav.workout.targetMuscles,
+        exercises: exercisesData,
+        createdAt: fav.workout.createdAt.toISOString(),
+      };
     });
 
     console.log('Processed workouts:', JSON.stringify(workouts, null, 2));

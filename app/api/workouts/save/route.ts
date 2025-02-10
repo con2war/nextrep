@@ -10,53 +10,85 @@ export async function POST(request: Request) {
     }
 
     const workout = await request.json();
-    console.log("API received workout:", workout);
+    console.log("Raw workout data received:", JSON.stringify(workout, null, 2));
 
-    // Prepare the exercises field based on workout type.
-    let exercisesValue: any;
+    // For DAILY workouts, create a properly structured exercises object
+    let exercisesData;
     if (workout.type === "DAILY") {
-      // For DAILY workouts, combine warmup, mainWorkout, and cooldown arrays.
-      exercisesValue = {
-        warmup: workout.warmup || [],
-        mainWorkout: workout.mainWorkout || [],
-        cooldown: workout.cooldown || [],
+      // First, try to get exercises from direct properties
+      const warmup = workout.warmup || [];
+      const mainWorkout = workout.mainWorkout || [];
+      const cooldown = workout.cooldown || [];
+
+      // Create the structured data
+      exercisesData = {
+        warmup: warmup.map((ex: any) => ({
+          exercise: ex.exercise,
+          duration: ex.duration,
+          sets: ex.sets,
+          reps: ex.reps,
+          rest: ex.rest,
+          notes: ex.notes,
+          type: ex.type,
+          weight: ex.weight
+        })),
+        mainWorkout: mainWorkout.map((ex: any) => ({
+          exercise: ex.exercise,
+          duration: ex.duration,
+          sets: ex.sets,
+          reps: ex.reps,
+          rest: ex.rest,
+          notes: ex.notes,
+          type: ex.type,
+          weight: ex.weight
+        })),
+        cooldown: cooldown.map((ex: any) => ({
+          exercise: ex.exercise,
+          duration: ex.duration,
+          sets: ex.sets,
+          reps: ex.reps,
+          rest: ex.rest,
+          notes: ex.notes,
+          type: ex.type,
+          weight: ex.weight
+        }))
       };
     } else {
-      // For other workout types, use the provided exercises field.
-      if (typeof workout.exercises === "string") {
-        try {
-          exercisesValue = JSON.parse(workout.exercises);
-        } catch (error) {
-          console.error("Error parsing exercises:", error);
-          exercisesValue = workout.exercises;
-        }
-      } else {
-        exercisesValue = workout.exercises;
-      }
+      exercisesData = workout.exercises;
     }
 
-    // Create the workout record.
+    console.log("Structured exercises data to save:", JSON.stringify(exercisesData, null, 2));
+
+    // Save the workout with the structured data
     const savedWorkout = await prisma.workout.create({
       data: {
         userId: session.user.sub,
         type: workout.type,
-        duration: String(workout.duration),
-        difficulty: workout.difficulty,
-        targetMuscles: workout.targetMuscles,
-        exercises: exercisesValue,
+        duration: workout.duration || "0",
+        difficulty: workout.difficulty || "medium",
+        targetMuscles: workout.targetMuscles || [],
+        exercises: JSON.stringify(exercisesData), // Explicitly stringify the exercises data
       },
     });
 
-    // Create a favorite record linking the user and the newly saved workout.
+    // Create a favorite record with the workout included in the response
     const favoriteWorkout = await prisma.favoriteWorkout.create({
       data: {
         userId: session.user.sub,
         workoutId: savedWorkout.id,
       },
+      include: {
+        workout: true,
+      },
     });
 
-    console.log("Saved workout and favorite:", { savedWorkout, favoriteWorkout });
-    return NextResponse.json(savedWorkout);
+    // Log the saved data for verification
+    console.log("Successfully saved workout:", JSON.stringify({
+      ...favoriteWorkout.workout,
+      exercises: JSON.parse(favoriteWorkout.workout.exercises as string)
+    }, null, 2));
+
+    return NextResponse.json(favoriteWorkout.workout);
   } catch (error: any) {
     console.error("Server error:", error);
     return NextResponse.json(
