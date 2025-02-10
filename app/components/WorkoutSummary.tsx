@@ -29,23 +29,21 @@ export interface WorkoutSummaryProps {
   workout: {
     name: string;
     type: "AMRAP" | "EMOM" | "TABATA" | "FOR TIME" | "DAILY";
-    // For EMOM / FOR TIME / AMRAP / TABATA, exercises may be stored as a JSON string.
+    duration?: string;
     exercises?: any;
     warmup?: Exercise[];
     mainWorkout?: Exercise[];
     cooldown?: Exercise[];
     targetMuscles?: string[];
     difficulty?: string;
-    // Extra fields for EMOM:
     intervalTime?: number;
     roundsPerMovement?: number;
     timeCap?: number;
-    // Extra fields for TABATA:
     workTime?: number;
     restTime?: number;
     rounds?: number;
   };
-  duration: number; // in seconds
+  duration: number;
   completedAt: Date;
 }
 
@@ -62,62 +60,70 @@ export default function WorkoutSummary({
   const router = useRouter();
   const { user } = useUser();
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
 
   const handleSave = async () => {
     if (!user) {
-      router.push("/api/auth/login");
+      window.location.href = '/api/auth/login';
       return;
     }
+
     setIsSaving(true);
+    setSaveError(null);
+
     try {
-      console.log("Raw workout prop:", workout);
-      let formattedExercises: any;
-      if (workout.type === "DAILY") {
-        // For DAILY workouts, combine the structured exercises
-        formattedExercises = {
+      // Create workout data based on workout type
+      let workoutData;
+      
+      if (workout.type === 'DAILY') {
+        workoutData = {
+          name: workout.name,
+          type: workout.type,
+          duration: workout.duration || "0",
+          difficulty: workout.difficulty || "medium",
+          targetMuscles: workout.targetMuscles || [],
           warmup: workout.warmup || [],
           mainWorkout: workout.mainWorkout || [],
           cooldown: workout.cooldown || [],
         };
-      } else if (
-        (workout.type === "EMOM" ||
-          workout.type === "FOR TIME" ||
-          workout.type === "AMRAP" ||
-          workout.type === "TABATA") &&
-        typeof workout.exercises === "string"
-      ) {
-        formattedExercises = JSON.parse(workout.exercises);
       } else {
-        formattedExercises = workout.exercises;
+        // For non-DAILY workouts
+        workoutData = {
+          name: workout.name,
+          type: workout.type,
+          duration: workout.duration || "0",
+          difficulty: workout.difficulty || "medium",
+          targetMuscles: workout.targetMuscles || [],
+          exercises: typeof workout.exercises === 'string' 
+            ? JSON.parse(workout.exercises) 
+            : workout.exercises,
+        };
       }
 
-      const workoutData = {
-        name: workout.name || "Daily Workout",
-        type: workout.type || "DAILY",
-        duration: String(duration),
-        difficulty: workout.difficulty || "medium",
-        targetMuscles: workout.targetMuscles || [],
-        exercises: formattedExercises,
-        intervalTime: workout.intervalTime,
-        roundsPerMovement: workout.roundsPerMovement,
-        timeCap: workout.timeCap,
-        workTime: workout.workTime,
-        restTime: workout.restTime,
-        rounds: workout.rounds,
-      };
-      console.log("Final workout data:", workoutData);
+      console.log("Sending workout data:", JSON.stringify(workoutData, null, 2));
 
-      const response = await fetch("/api/workouts/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/workouts/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(workoutData),
       });
-      if (!response.ok) throw new Error("Failed to save workout");
-      alert("Workout saved successfully!");
-      router.push("/profile");
-    } catch (error: any) {
-      console.error("Error saving workout:", error);
-      alert("Failed to save workout. Please try again.");
+
+      if (!response.ok) {
+        throw new Error('Failed to save workout');
+      }
+
+      const savedWorkout = await response.json();
+      console.log("Workout saved successfully:", savedWorkout);
+      setIsSaved(true);
+
+      // Redirect to profile page after successful save
+      window.location.href = '/profile';
+    } catch (error) {
+      console.error('Save error:', error);
+      setSaveError('Failed to save workout');
     } finally {
       setIsSaving(false);
     }

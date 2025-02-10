@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import Link from "next/link"
 import WorkoutSummary from '../components/WorkoutSummary'
 
+
 type WorkoutGoal = 'strength' | 'hypertrophy' | 'powerlifting' | 'yoga' | 'conditioning' | 'endurance' | 'fat_loss' | 'mobility' | 'functional' | 'athletic'
 type Equipment = 'freeWeights' | 'machines' | 'dumbbells' | 'kettlebells' | 'assaultBike' | 'medicineBalls' | 'resistanceBands'
 type MuscleGroup = 'fullBody' | 'upperBody' | 'lowerBody' | 'core' | 'back' | 'chest' | 'arms' | 'shoulders' | 'legs'
@@ -72,6 +73,7 @@ interface WorkoutResponse {
 }
 
 interface WorkoutSummary {
+  name?: string;
   duration: string;
   completedExercises: {
     mainWorkout: number;
@@ -332,41 +334,56 @@ export default function DailyWorkout() {
 
   const handleSaveWorkout = async () => {
     if (!user || !workoutSummary) {
-      window.location.href = '/api/auth/login'
-      return
+      window.location.href = '/api/auth/login';
+      return;
     }
-
-    setIsSaving(true)
-    setSaveError(null)
-
+  
+    setIsSaving(true);
+    setSaveError(null);
+  
     try {
+      // Create a properly structured workout payload
+      const payload = {
+        name: workoutSummary.name || "Daily Workout",
+        type: "DAILY",
+        duration: workoutSummary.duration,
+        difficulty: workout?.difficulty || 'medium',
+        targetMuscles: workout?.targetMuscles || [],
+        // Include both the structured exercises and individual sections
+        exercises: {
+          warmup: workoutSummary.exercises.warmup || [],
+          mainWorkout: workoutSummary.exercises.mainWorkout || [],
+          cooldown: workoutSummary.exercises.cooldown || []
+        },
+        // Also include sections at the top level for compatibility
+        warmup: workoutSummary.exercises.warmup || [],
+        mainWorkout: workoutSummary.exercises.mainWorkout || [],
+        cooldown: workoutSummary.exercises.cooldown || []
+      };
+  
+      console.log("Saving DAILY workout with payload:", payload);
+  
       const response = await fetch('/api/workouts/save', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          duration: workoutSummary.duration,
-          type: selectedGoal,
-          exercises: workoutSummary.exercises,
-          targetMuscles: workout?.targetMuscles || [],
-          difficulty: workout?.difficulty || 'medium',
-        }),
-      })
-
+        body: JSON.stringify(payload),
+      });
+  
       if (!response.ok) {
-        throw new Error('Failed to save workout')
+        throw new Error('Failed to save workout');
       }
-
-      setIsSaved(true)
+  
+      setIsSaved(true);
     } catch (error) {
-      setSaveError('Failed to save workout')
-      console.error('Save error:', error)
+      setSaveError('Failed to save workout');
+      console.error('Save error:', error);
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
-
+  };
+  
   // Add back navigation handler
   const handleBack = (previousStep: 'goal' | 'equipment' | 'preferences') => {
     setStep(previousStep)

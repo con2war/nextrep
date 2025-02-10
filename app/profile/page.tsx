@@ -109,22 +109,39 @@ export default function Profile() {
     }
   }, [user])
 
-  const handleWorkoutClick = (workout: SavedWorkout) => {
-    if (
-      workout.type === "DAILY" &&
-      workout.exercises &&
-      typeof workout.exercises === "object"
-    ) {
-      // Unpack the combined object so that warmup, mainWorkout, and cooldown
-      // are available as top-level keys.
-      workout.warmup = workout.exercises.warmup;
-      workout.mainWorkout = workout.exercises.mainWorkout;
-      workout.cooldown = workout.exercises.cooldown;
+const handleWorkoutClick = (workout: SavedWorkout) => {
+  if (workout.type === "DAILY") {
+    // For DAILY workouts, ensure we have the proper structure
+    let parsedExercises = workout.exercises;
+    
+    // If exercises is a string, parse it
+    if (typeof parsedExercises === 'string') {
+      try {
+        parsedExercises = JSON.parse(parsedExercises);
+      } catch (error) {
+        console.error('Error parsing exercises:', error);
+        parsedExercises = {};
+      }
     }
+
+    // Create a properly structured workout object
+    const structuredWorkout = {
+      ...workout,
+      warmup: workout.warmup || parsedExercises.warmup || [],
+      mainWorkout: workout.mainWorkout || parsedExercises.mainWorkout || [],
+      cooldown: workout.cooldown || parsedExercises.cooldown || [],
+      exercises: parsedExercises
+    };
+
+    console.log("Structured DAILY workout:", structuredWorkout);
+    setSelectedWorkout(structuredWorkout);
+  } else {
+    // For non-DAILY workouts, use as is
     setSelectedWorkout(workout);
-    setIsModalOpen(true);
-  };
-  
+  }
+  setIsModalOpen(true);
+};
+
 
   // Format and save the workout data, then navigate to the proper session page.
   const handleStartWorkout = (workout: SavedWorkout) => {
@@ -180,6 +197,46 @@ export default function Profile() {
       alert('Error loading workout. Please try again.')
     }
   }
+
+  const handleDeleteWorkout = async (workoutId: string) => {
+    try {
+      const response = await fetch(`/api/workouts/favorites/${workoutId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete workout');
+      }
+      
+      // Update the local state to remove the deleted workout
+      setSavedWorkouts(savedWorkouts.filter(workout => workout.id !== workoutId));
+    } catch (error) {
+      console.error('Error deleting workout:', error);
+      alert('Failed to delete workout. Please try again.');
+    }
+  };
+
+  const handleDeleteAllWorkouts = async () => {
+    try {
+      if (!confirm('Are you sure you want to delete ALL favorited workouts? This cannot be undone.')) {
+        return;
+      }
+
+      const response = await fetch('/api/workouts/favorites/delete-all', {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete all workouts');
+      }
+      
+      // Clear the local state
+      setSavedWorkouts([]);
+    } catch (error) {
+      console.error('Error deleting all workouts:', error);
+      alert('Failed to delete all workouts. Please try again.');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -341,44 +398,63 @@ export default function Profile() {
           </>
         ) : (
           <div className="space-y-4">
+            {savedWorkouts.length > 0 && (
+              <button
+                onClick={handleDeleteAllWorkouts}
+                className="w-full mb-4 bg-red-500 text-white font-medium px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Delete All Favorites (Temporary)
+              </button>
+            )}
             {savedWorkouts.length === 0 ? (
               <div className="text-center py-8 text-gray-400">No saved workouts yet</div>
             ) : (
               savedWorkouts.map((workout) => (
-                <button
+                <div
                   key={workout.id}
-                  onClick={() => handleWorkoutClick(workout)}
-                  className="w-full text-left p-4 rounded-lg border border-gray-200 bg-white shadow-sm hover:border-blue-200 transition-colors"
+                  className="relative w-full p-4 rounded-lg border border-gray-200 bg-white shadow-sm hover:border-blue-200 transition-colors group"
                 >
-                  <div className="flex justify-between items-center mb-2">
-                    <div>
-                      <h3 className="font-medium text-gray-900">{workout.type}</h3>
-                      <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          {workout.duration}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Dumbbell className="w-4 h-4" />
-                          {workout.difficulty}
+                  {/* Main content div (clickable) */}
+                  <div
+                    onClick={() => handleWorkoutClick(workout)}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-2">
+                        <Dumbbell className="w-5 h-5 text-blue-500" />
+                        <span className="font-medium">
+                          {workout.type} Workout
                         </span>
                       </div>
-                    </div>
-                    <span className="text-sm text-gray-400">
-                      {new Date(workout.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {workout.targetMuscles.map((muscle, index) => (
-                      <span
-                        key={index}
-                        className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-600"
-                      >
-                        {muscle}
+                      <span className="text-sm text-gray-500">
+                        {formatDistanceToNow(new Date(workout.createdAt), { addSuffix: true })}
                       </span>
-                    ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {workout.targetMuscles && workout.targetMuscles.map((muscle, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-sm"
+                        >
+                          {muscle}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </button>
+
+                  {/* Delete button (separate from clickable area) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm('Are you sure you want to delete this workout?')) {
+                        handleDeleteWorkout(workout.id);
+                      }
+                    }}
+                    className="absolute top-2 right-2 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
+                  >
+                    <X className="w-4 h-4 text-red-500" />
+                  </button>
+                </div>
               ))
             )}
           </div>
@@ -407,41 +483,93 @@ export default function Profile() {
                   )}
                 </div>
 
-                {/* Unique Workout Details */}
-                {selectedWorkout.type === "TABATA" && (
-                  <div>
-                    <h3 className="font-medium text-gray-900 mb-2">Tabata Details</h3>
-                    <p className="text-sm text-gray-500">
-                      Work: {selectedWorkout.workTime ?? "--"}s &nbsp; Rest: {selectedWorkout.restTime ?? "--"}s
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Rounds: {selectedWorkout.rounds ?? "--"}
-                    </p>
-                  </div>
+                {/* Exercises Sections */}
+                {selectedWorkout.type === "DAILY" && (
+                  <>
+                    {/* Warmup Section */}
+                    {selectedWorkout.warmup && selectedWorkout.warmup.length > 0 && (
+                      <div>
+                        <h3 className="font-medium text-gray-900 mb-2">Warm Up</h3>
+                        <ul className="space-y-2">
+                          {selectedWorkout.warmup.map((exercise, index) => (
+                            <li key={index} className="text-sm bg-gray-50 p-2 rounded">
+                              <span className="font-medium">{exercise.exercise}</span>
+                              {exercise.sets && <span className="text-gray-500"> • {exercise.sets} sets</span>}
+                              {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Main Workout Section */}
+                    {selectedWorkout.mainWorkout && selectedWorkout.mainWorkout.length > 0 && (
+                      <div>
+                        <h3 className="font-medium text-gray-900 mb-2">Main Workout</h3>
+                        <ul className="space-y-2">
+                          {selectedWorkout.mainWorkout.map((exercise, index) => (
+                            <li key={index} className="text-sm bg-gray-50 p-2 rounded">
+                              <span className="font-medium">{exercise.exercise}</span>
+                              {exercise.sets && <span className="text-gray-500"> • {exercise.sets} sets</span>}
+                              {exercise.reps && <span className="text-gray-500"> • {exercise.reps} reps</span>}
+                              {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
+                              {exercise.rest && <span className="text-gray-500"> • Rest: {exercise.rest}</span>}
+                              {exercise.notes && <p className="text-xs text-gray-500 mt-1 italic">{exercise.notes}</p>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Cooldown Section */}
+                    {selectedWorkout.cooldown && selectedWorkout.cooldown.length > 0 && (
+                      <div>
+                        <h3 className="font-medium text-gray-900 mb-2">Cool Down</h3>
+                        <ul className="space-y-2">
+                          {selectedWorkout.cooldown.map((exercise, index) => (
+                            <li key={index} className="text-sm bg-gray-50 p-2 rounded">
+                              <span className="font-medium">{exercise.exercise}</span>
+                              {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
                 )}
-                {selectedWorkout.type === "EMOM" && (
+
+                {/* Non-DAILY workout exercises */}
+                {selectedWorkout.type !== "DAILY" && (
                   <div>
-                    <h3 className="font-medium text-gray-900 mb-2">EMOM Details</h3>
-                    <p className="text-sm text-gray-500">
-                      Interval Time: {selectedWorkout.intervalTime ?? "--"} seconds
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Rounds per Movement: {selectedWorkout.roundsPerMovement ?? "--"}
-                    </p>
-                  </div>
-                )}
-                {selectedWorkout.type === "AMRAP" && selectedWorkout.timeCap && (
-                  <div>
-                    <h3 className="font-medium text-gray-900 mb-2">AMRAP Details</h3>
-                    <p className="text-sm text-gray-500">
-                      Time Cap: {selectedWorkout.timeCap} minute{selectedWorkout.timeCap > 1 ? "s" : ""}
-                    </p>
-                  </div>
-                )}
-                {selectedWorkout.type === "FOR TIME" && (
-                  <div>
-                    <h3 className="font-medium text-gray-900 mb-2">For Time Details</h3>
-                    {/* Add any unique fields for FOR TIME workouts if applicable */}
+                    <h3 className="font-medium mb-2">Exercises</h3>
+                    {(() => {
+                      let exercisesData: any[] = []
+                      if (typeof selectedWorkout.exercises === "string") {
+                        try {
+                          exercisesData = JSON.parse(selectedWorkout.exercises)
+                        } catch (error) {
+                          console.error("Error parsing exercises:", error)
+                        }
+                      } else if (Array.isArray(selectedWorkout.exercises)) {
+                        exercisesData = selectedWorkout.exercises
+                      }
+                      return exercisesData.length > 0 ? (
+                        <ul className="space-y-2">
+                          {exercisesData.map((exercise, index) => (
+                            <li key={index} className="text-sm bg-gray-50 p-2 rounded">
+                              <span className="font-medium">{exercise.name || exercise.exercise}</span>
+                              {exercise.sets && <span className="text-gray-500"> • {exercise.sets} sets</span>}
+                              {exercise.reps && <span className="text-gray-500"> • {exercise.reps} reps</span>}
+                              {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
+                              {exercise.rest && <span className="text-gray-500"> • Rest: {exercise.rest}</span>}
+                              {exercise.notes && <p className="text-xs text-gray-500 mt-1 italic">{exercise.notes}</p>}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-gray-400">No exercise details available</p>
+                      )
+                    })()}
                   </div>
                 )}
 
@@ -472,46 +600,9 @@ export default function Profile() {
                     </div>
                   </div>
                 )}
-
-                {/* Exercises */}
-                <div>
-                  <h3 className="font-medium mb-2">Exercises</h3>
-                  {["EMOM", "FOR TIME", "AMRAP", "TABATA"].includes(selectedWorkout.type) ? (
-                    (() => {
-                      let exercisesData: any[] = []
-                      if (typeof selectedWorkout.exercises === "string") {
-                        try {
-                          exercisesData = JSON.parse(selectedWorkout.exercises)
-                        } catch (error) {
-                          console.error("Error parsing exercises:", error)
-                        }
-                      } else if (Array.isArray(selectedWorkout.exercises)) {
-                        exercisesData = selectedWorkout.exercises
-                      }
-                      return exercisesData.length > 0 ? (
-                        <ul className="space-y-2">
-                          {exercisesData.map((exercise, index) => (
-                            <li key={index} className="text-sm bg-gray-50 p-2 rounded">
-                              <span className="font-medium">{exercise.name || exercise.exercise}</span>
-                              {exercise.sets && <span className="text-gray-500"> • {exercise.sets} sets</span>}
-                              {exercise.reps && <span className="text-gray-500"> • {exercise.reps} reps</span>}
-                              {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
-                              {exercise.rest && <span className="text-gray-500"> • Rest: {exercise.rest}</span>}
-                              {exercise.notes && <p className="text-xs text-gray-500 mt-1 italic">{exercise.notes}</p>}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-gray-400">No exercise details available</p>
-                      )
-                    })()
-                  ) : (
-                    <p className="text-gray-400">No exercise details available</p>
-                  )}
-                </div>
               </div>
 
-              {/* Single Action Button: Start Workout */}
+              {/* Action Buttons */}
               <button
                 onClick={() => {
                   setIsModalOpen(false)

@@ -9,7 +9,7 @@ import {
   Pause,
   Play,
   Volume2,
-  VolumeX
+  VolumeX,
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -39,7 +39,7 @@ interface WorkoutData {
   targetMuscles: string[];
   type: string;
   timePerExercise?: number;
-  // In the saved object, daily workouts may come with a combined exercises object.
+  // When saved, DAILY workouts may include a combined "exercises" property.
   exercises?: {
     warmup: Exercise[];
     mainWorkout: Exercise[];
@@ -47,7 +47,7 @@ interface WorkoutData {
   };
 }
 
-type ExerciseSection = 'warmup' | 'mainWorkout' | 'cooldown';
+type ExerciseSection = "warmup" | "mainWorkout" | "cooldown";
 
 interface ExercisesState {
   warmup: Exercise[];
@@ -57,7 +57,7 @@ interface ExercisesState {
 
 export default function WorkoutSession({
   workout,
-  onComplete
+  onComplete,
 }: {
   workout: WorkoutData;
   onComplete: (summary: any) => void;
@@ -67,31 +67,30 @@ export default function WorkoutSession({
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
-  const [hasAnnouncedStart, setHasAnnouncedStart] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [completedAt, setCompletedAt] = useState<Date | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
 
-  // Initialize exercises from the workout data.
+  // Initialize exercises state from the workout prop.
   const [exercises, setExercises] = useState<ExercisesState>(() => {
-    // On initial render, use the provided workout object.
+    // Use the provided workout object (or its "exercises" property) if available.
     const workoutExercises = workout.exercises || workout;
     return {
       warmup: (workoutExercises.warmup || []).map((ex: Exercise) => ({
         ...ex,
         completed: ex.completed || 0,
-        weight: ex.weight || 0
+        weight: ex.weight || 0,
       })),
       mainWorkout: (workoutExercises.mainWorkout || []).map((ex: Exercise) => ({
         ...ex,
         completed: ex.completed || 0,
-        weight: ex.weight || 0
+        weight: ex.weight || 0,
       })),
       cooldown: (workoutExercises.cooldown || []).map((ex: Exercise) => ({
         ...ex,
         completed: ex.completed || 0,
-        weight: ex.weight || 0
-      }))
+        weight: ex.weight || 0,
+      })),
     };
   });
 
@@ -100,7 +99,7 @@ export default function WorkoutSession({
     let timerId: NodeJS.Timeout | undefined;
     if (isRunning && !isPaused) {
       timerId = setInterval(() => {
-        setTimer(prev => prev + 1);
+        setTimer((prev) => prev + 1);
       }, 1000);
     }
     return () => {
@@ -110,7 +109,7 @@ export default function WorkoutSession({
 
   // Load the saved workout from localStorage on mount.
   useEffect(() => {
-    const savedWorkout = localStorage.getItem('selectedWorkout');
+    const savedWorkout = localStorage.getItem("selectedWorkout");
     if (savedWorkout) {
       const parsedWorkout = JSON.parse(savedWorkout);
       console.log("WorkoutSession parsedWorkout:", parsedWorkout);
@@ -118,19 +117,23 @@ export default function WorkoutSession({
       if (parsedWorkout.exercises) {
         setExercises(parsedWorkout.exercises);
       }
-      // Otherwise, if top-level keys exist, combine them.
-      else if (parsedWorkout.warmup || parsedWorkout.mainWorkout || parsedWorkout.cooldown) {
+      // Otherwise, if the top-level keys exist, combine them.
+      else if (
+        parsedWorkout.warmup ||
+        parsedWorkout.mainWorkout ||
+        parsedWorkout.cooldown
+      ) {
         setExercises({
           warmup: parsedWorkout.warmup || [],
           mainWorkout: parsedWorkout.mainWorkout || [],
-          cooldown: parsedWorkout.cooldown || []
+          cooldown: parsedWorkout.cooldown || [],
         });
       } else {
         console.warn("No exercises property in parsedWorkout!");
       }
       setTimer(parsedWorkout.timePerExercise || 0);
     } else {
-      router.push('/daily-workout');
+      router.push("/daily-workout");
     }
   }, [router]);
 
@@ -139,48 +142,56 @@ export default function WorkoutSession({
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const handleSetComplete = (section: ExerciseSection, exerciseIndex: number) => {
-    setExercises(prev => ({
+    setExercises((prev) => ({
       ...prev,
       [section]: prev[section].map((ex, i) => {
         if (i === exerciseIndex && (ex.completed || 0) < (ex.sets || 0)) {
-          return { ...ex, completed: (ex.completed || 0) + 1 };
+          return {
+            ...ex,
+            completed: (ex.completed || 0) + 1,
+          };
         }
         return ex;
-      })
+      }),
     }));
   };
 
-  const handleWeightChange = (section: ExerciseSection, exerciseIndex: number, change: number) => {
-    setExercises(prev => ({
+  const handleWeightChange = (
+    section: ExerciseSection,
+    exerciseIndex: number,
+    change: number
+  ) => {
+    setExercises((prev) => ({
       ...prev,
       [section]: prev[section].map((ex, i) =>
-        i === exerciseIndex ? { ...ex, weight: Math.max(0, (ex.weight || 0) + change) } : ex
-      )
+        i === exerciseIndex
+          ? { ...ex, weight: Math.max(0, (ex.weight || 0) + change) }
+          : ex
+      ),
     }));
   };
 
-  // Updated speech synthesis function.
   const speak = (text: string) => {
-    if ('speechSynthesis' in window) {
+    if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       let voices = window.speechSynthesis.getVoices();
       if (voices.length === 0) {
-        window.speechSynthesis.addEventListener('voiceschanged', () => {
+        window.speechSynthesis.addEventListener("voiceschanged", () => {
           voices = window.speechSynthesis.getVoices();
         });
       }
       const preferredVoice = voices.find(
-        voice =>
-          (voice.name.includes('Male') ||
-            voice.name.includes('Daniel') ||
-            voice.name.includes('David') ||
-            voice.name.includes('James')) &&
-          (voice.lang.includes('en-US') || voice.lang.includes('en-GB'))
+        (voice) =>
+          (voice.name.includes("Male") ||
+            voice.name.includes("Daniel") ||
+            voice.name.includes("David") ||
+            voice.name.includes("James")) &&
+          (voice.lang.includes("en-US") || voice.lang.includes("en-GB"))
       );
       if (preferredVoice) {
         utterance.voice = preferredVoice;
@@ -200,26 +211,26 @@ export default function WorkoutSession({
   };
 
   const handleSave = async () => {
-    console.log('Saving workout...');
+    console.log("Saving workout...");
     setShowSummary(false);
-    // Pass the structured exercises object.
+    console.log("Exercises state in WorkoutSession:", exercises);
     onComplete({
       duration: formatTime(timer),
       exercises: {
         warmup: exercises.warmup,
         mainWorkout: exercises.mainWorkout,
-        cooldown: exercises.cooldown
+        cooldown: exercises.cooldown,
       },
-      completedAt: completedAt
+      completedAt: completedAt,
     });
   };
 
   const handleShare = async () => {
     try {
       const shareData = {
-        title: workout.name || 'Daily Workout',
+        title: workout.name || "Daily Workout",
         text: `I completed my daily workout in ${formatTime(timer)}!`,
-        url: window.location.href
+        url: window.location.href,
       };
 
       if (navigator.share) {
@@ -228,10 +239,10 @@ export default function WorkoutSession({
         await navigator.clipboard.writeText(
           `${shareData.title}\n${shareData.text}\n${shareData.url}`
         );
-        alert('Workout details copied to clipboard!');
+        alert("Workout details copied to clipboard!");
       }
     } catch (error) {
-      console.error('Error sharing:', error);
+      console.error("Error sharing:", error);
     }
     setShowSummary(false);
   };
@@ -309,11 +320,10 @@ export default function WorkoutSession({
             </button>
             <button
               onClick={() => setIsAudioEnabled(!isAudioEnabled)}
-              className={`p-3 rounded-lg ${
-                isAudioEnabled
-                  ? 'bg-green-500 hover:bg-green-600'
-                  : 'bg-red-500 hover:bg-red-600'
-              } text-white transition-colors`}
+              className={`p-3 rounded-lg ${isAudioEnabled
+                  ? "bg-green-500 hover:bg-green-600"
+                  : "bg-red-500 hover:bg-red-600"
+                } text-white transition-colors`}
             >
               {isAudioEnabled ? (
                 <Volume2 className="w-5 h-5" />
@@ -329,7 +339,7 @@ export default function WorkoutSession({
           {Object.entries(exercises).map(([section, sectionExercises]) => (
             <section key={section}>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                {section.replace(/([A-Z])/g, ' $1').trim()}
+                {section.replace(/([A-Z])/g, " $1").trim()}
               </h3>
               <div className="space-y-4">
                 {sectionExercises.map((exercise: Exercise, index: number) => (
@@ -364,45 +374,53 @@ export default function WorkoutSession({
                             )}
                           </div>
                           {exercise.notes && (
-                            <p className="text-sm text-gray-500 mt-2">{exercise.notes}</p>
+                            <p className="text-sm text-gray-500 mt-2">
+                              {exercise.notes}
+                            </p>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
                           {exercise.sets && (
                             <span
-                              className={`text-sm font-medium ${
-                                exercise.completed === exercise.sets
-                                  ? 'text-green-600'
-                                  : 'text-blue-600'
-                              }`}
+                              className={`text-sm font-medium ${exercise.completed === exercise.sets
+                                  ? "text-green-600"
+                                  : "text-blue-600"
+                                }`}
                             >
                               {exercise.completed || 0}/{exercise.sets}
                             </span>
                           )}
                           <button
                             onClick={() =>
-                              handleSetComplete(section as ExerciseSection, index)
+                              handleSetComplete(
+                                section as ExerciseSection,
+                                index
+                              )
                             }
-                            className={`p-2 rounded-full transition-colors ${
-                              exercise.completed === exercise.sets
-                                ? 'hover:bg-green-50'
-                                : 'hover:bg-blue-50'
-                            }`}
+                            className={`p-2 rounded-full transition-colors ${exercise.completed === exercise.sets
+                                ? "hover:bg-green-50"
+                                : "hover:bg-blue-50"
+                              }`}
                           >
                             <CheckCircle
-                              className={`w-5 h-5 ${
-                                exercise.completed === exercise.sets
-                                  ? 'text-green-500 fill-green-500'
-                                  : 'text-gray-400'
-                              }`}
+                              className={`w-5 h-5 ${exercise.completed === exercise.sets
+                                  ? "text-green-500 fill-green-500"
+                                  : "text-gray-400"
+                                }`}
                             />
                           </button>
                         </div>
                       </div>
-                      {exercise.type !== 'bodyweight' && (
+                      {exercise.type !== "bodyweight" && (
                         <div className="flex items-center gap-2 mt-3 bg-gray-50 rounded-lg p-2">
                           <button
-                            onClick={() => handleWeightChange(section as ExerciseSection, index, -2.5)}
+                            onClick={() =>
+                              handleWeightChange(
+                                section as ExerciseSection,
+                                index,
+                                -2.5
+                              )
+                            }
                             className="p-1.5 rounded-md hover:bg-white transition-colors text-gray-600"
                           >
                             <Minus className="w-4 h-4" />
@@ -411,7 +429,13 @@ export default function WorkoutSession({
                             {exercise.weight}kg
                           </span>
                           <button
-                            onClick={() => handleWeightChange(section as ExerciseSection, index, 2.5)}
+                            onClick={() =>
+                              handleWeightChange(
+                                section as ExerciseSection,
+                                index,
+                                2.5
+                              )
+                            }
                             className="p-1.5 rounded-md hover:bg-white transition-colors text-gray-600"
                           >
                             <Plus className="w-4 h-4" />
@@ -426,20 +450,25 @@ export default function WorkoutSession({
           ))}
         </div>
 
-        {/* Workout Summary */}
+        {/* Workout Summary Modal */}
         <WorkoutSummary
           isOpen={showSummary}
           onClose={() => setShowSummary(false)}
           onSave={handleSave}
           onShare={handleShare}
           workout={{
-            name: workout.name || 'Daily Workout',
-            type: 'DAILY',
+            name: workout.name || "Daily Workout",
+            type: "DAILY",
+            exercises: {
+              warmup: exercises.warmup,
+              mainWorkout: exercises.mainWorkout,
+              cooldown: exercises.cooldown
+            },
             warmup: exercises.warmup,
             mainWorkout: exercises.mainWorkout,
             cooldown: exercises.cooldown,
-            // Note: We do not pass a flattened "exercises" property here,
-            // so that the WorkoutSummary component can render the daily sections.
+            difficulty: workout.difficulty || "medium",
+            targetMuscles: workout.targetMuscles || []
           }}
           duration={timer}
           completedAt={completedAt || new Date()}
