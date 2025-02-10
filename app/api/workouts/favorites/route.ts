@@ -1,15 +1,6 @@
-import { getSession } from '@auth0/nextjs-auth0'
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-
-interface Workout {
-  id: string;
-  type: string;
-  duration: string;
-  difficulty: string;
-  targetMuscles: string[];
-  exercises: any;
-}
+import { getSession } from '@auth0/nextjs-auth0';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 interface FavoriteWithWorkout {
   workout: {
@@ -24,23 +15,20 @@ interface FavoriteWithWorkout {
   createdAt: Date;
 }
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const session = await getSession()
+    const session = await getSession();
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Log the user ID for debugging
-    console.log('Fetching favorites for user:', session.user.sub)
+    console.log('Fetching favorites for user:', session.user.sub);
 
     const favorites = await prisma.favoriteWorkout.findMany({
-      where: {
-        userId: session.user.sub,
-      },
+      where: { userId: session.user.sub },
       include: {
         workout: {
           select: {
@@ -54,46 +42,59 @@ export async function GET(req: Request) {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
+      orderBy: { createdAt: 'desc' },
+    });
 
-    // Log the raw favorites data
-    console.log('Raw favorites data:', JSON.stringify(favorites, null, 2))
+    console.log('Raw favorites data:', JSON.stringify(favorites, null, 2));
 
     const workouts = favorites.map((fav: FavoriteWithWorkout) => {
-      // Parse exercises if they're stored as a string
-      let parsedExercises
+      let parsedExercises;
       try {
-        parsedExercises = typeof fav.workout.exercises === 'string'
-          ? JSON.parse(fav.workout.exercises)
-          : fav.workout.exercises
+        parsedExercises =
+          typeof fav.workout.exercises === 'string'
+            ? JSON.parse(fav.workout.exercises)
+            : fav.workout.exercises;
       } catch (error) {
-        console.error('Error parsing exercises:', error)
-        parsedExercises = []
+        console.error('Error parsing exercises:', error);
+        parsedExercises = {};
       }
 
-      return {
-        id: fav.workout.id,
-        type: fav.workout.type,
-        duration: fav.workout.duration,
-        difficulty: fav.workout.difficulty,
-        targetMuscles: fav.workout.targetMuscles,
-        exercises: parsedExercises,
-        createdAt: fav.createdAt.toISOString(),
+      // For DAILY workouts, unpack the exercises object.
+      if (fav.workout.type === 'DAILY' && parsedExercises && typeof parsedExercises === 'object') {
+        return {
+          id: fav.workout.id,
+          type: fav.workout.type,
+          duration: fav.workout.duration,
+          difficulty: fav.workout.difficulty,
+          targetMuscles: fav.workout.targetMuscles,
+          warmup: parsedExercises.warmup || [],
+          mainWorkout: parsedExercises.mainWorkout || [],
+          cooldown: parsedExercises.cooldown || [],
+          // Also include the full combined object (if needed)
+          exercises: parsedExercises,
+          createdAt: fav.workout.createdAt.toISOString(),
+        };
+      } else {
+        return {
+          id: fav.workout.id,
+          type: fav.workout.type,
+          duration: fav.workout.duration,
+          difficulty: fav.workout.difficulty,
+          targetMuscles: fav.workout.targetMuscles,
+          exercises: parsedExercises,
+          createdAt: fav.workout.createdAt.toISOString(),
+        };
       }
-    })
+    });
 
-    // Log the processed workouts
-    console.log('Processed workouts:', JSON.stringify(workouts, null, 2))
-
-    return NextResponse.json(workouts)
+    console.log('Processed workouts:', JSON.stringify(workouts, null, 2));
+    return NextResponse.json(workouts);
   } catch (error) {
-    console.error('Error fetching favorites:', error)
+    console.error('Error fetching favorites:', error);
     return NextResponse.json(
       { error: 'Failed to fetch favorites' },
       { status: 500 }
-    )
+    );
   }
-} 
+}
+
