@@ -24,10 +24,10 @@ model Workout {
   id            String    @id @default(cuid())
   userId        String
   user          User      @relation(fields: [userId], references: [id])
-  date          DateTime  @default(now())
+  name          String?
+  date          DateTime? @default(now())
   duration      String
   type          String    
-  name          String?
   exercises     Json      // Structured as: { warmup: [], mainWorkout: [], cooldown: [] }
   targetMuscles String[]
   difficulty    String
@@ -35,6 +35,12 @@ model Workout {
   completions   CompletedWorkout[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  workTime      Int?
+  restTime      Int?
+  rounds        Int?
+  intervalTime  Int?
+  roundsPerMovement Int?
+  timeCap       Int?
 
   @@index([userId])
   @@index([type])
