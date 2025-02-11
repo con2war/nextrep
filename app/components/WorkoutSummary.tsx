@@ -62,6 +62,8 @@ export default function WorkoutSummary({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [savedWorkoutData, setSavedWorkoutData] = useState<any>(null);
 
   const handleSave = async () => {
     if (!user) {
@@ -73,35 +75,33 @@ export default function WorkoutSummary({
     setSaveError(null);
 
     try {
-      // Create workout data based on workout type
-      let workoutData;
-      
-      if (workout.type === 'DAILY') {
-        workoutData = {
-          name: workout.name,
-          type: workout.type,
-          duration: workout.duration || "0",
-          difficulty: workout.difficulty || "medium",
-          targetMuscles: workout.targetMuscles || [],
-          warmup: workout.warmup || [],
-          mainWorkout: workout.mainWorkout || [],
-          cooldown: workout.cooldown || [],
-        };
-      } else {
-        // For non-DAILY workouts
-        workoutData = {
-          name: workout.name,
-          type: workout.type,
-          duration: workout.duration || "0",
-          difficulty: workout.difficulty || "medium",
-          targetMuscles: workout.targetMuscles || [],
-          exercises: typeof workout.exercises === 'string' 
-            ? JSON.parse(workout.exercises) 
-            : workout.exercises,
-        };
-      }
+      const workoutData = {
+        name: workout.name,
+        type: workout.type,
+        exercises: workout.exercises,
+        duration: duration.toString(),
+        difficulty: workout.difficulty || "medium",
+        targetMuscles: workout.targetMuscles || [],
+        ...(workout.type === 'TABATA' && {
+          workTime: workout.workTime,
+          restTime: workout.restTime,
+          rounds: workout.rounds,
+        }),
+        ...(workout.type === 'EMOM' && {
+          intervalTime: workout.intervalTime,
+          roundsPerMovement: workout.roundsPerMovement,
+        }),
+        ...(workout.type === 'AMRAP' && {
+          timeCap: workout.timeCap,
+        }),
+        ...(workout.type === 'DAILY' && {
+          warmup: workout.warmup,
+          mainWorkout: workout.mainWorkout,
+          cooldown: workout.cooldown,
+        }),
+      };
 
-      console.log("Sending workout data:", JSON.stringify(workoutData, null, 2));
+      console.log("Saving workout data:", workoutData);
 
       const response = await fetch('/api/workouts/save', {
         method: 'POST',
@@ -111,16 +111,13 @@ export default function WorkoutSummary({
         body: JSON.stringify(workoutData),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to save workout');
-      }
-
-      const savedWorkout = await response.json();
-      console.log("Workout saved successfully:", savedWorkout);
+      const savedData = await response.json();
+      console.log("Saved workout response:", savedData);
+      
+      // Show confirmation modal with saved data
+      setSavedWorkoutData(savedData);
+      setShowConfirmation(true);
       setIsSaved(true);
-
-      // Redirect to profile page after successful save
-      window.location.href = '/profile';
     } catch (error) {
       console.error('Save error:', error);
       setSaveError('Failed to save workout');
@@ -399,6 +396,31 @@ export default function WorkoutSummary({
           </div>
         </div>
       </div>
+
+      {showConfirmation && savedWorkoutData && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full">
+            <h3 className="text-lg font-bold mb-4">Workout Saved Successfully</h3>
+            <pre className="bg-gray-100 p-4 rounded overflow-auto max-h-96 text-sm">
+              {JSON.stringify(savedWorkoutData, null, 2)}
+            </pre>
+            <div className="mt-4 flex justify-end gap-4">
+              <button
+                onClick={() => window.location.href = '/profile'}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Go to Profile
+              </button>
+              <button
+                onClick={() => setShowConfirmation(false)}
+                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -28,7 +28,7 @@ interface TabataWorkout {
   restTime: number; // seconds for rest period
 }
 
-export default function TabataSession() {
+export default function TabataSession({ onSave }: { onSave?: (workout: any) => void }) {
   const router = useRouter();
   const [workout, setWorkout] = useState<TabataWorkout | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -359,8 +359,26 @@ export default function TabataSession() {
           isOpen={showSummary}
           onClose={() => setShowSummary(false)}
           onSave={() => {
-            // Implement save functionality as needed
-            console.log("Saving Tabata workout...");
+            // Create the workout data with all TABATA-specific fields
+            const workoutData = {
+              name: workout.name,
+              type: "TABATA",
+              exercises: workout.exercises,
+              duration: totalTime.toString(),
+              difficulty: "medium",
+              targetMuscles: [],
+              // Add TABATA-specific fields
+              workTime: workout.workTime,
+              restTime: workout.restTime,
+              rounds: workout.rounds
+            };
+
+            console.log("Saving TABATA workout:", workoutData);
+            
+            // Pass the complete workout data to the save handler
+            if (onSave) {
+              onSave(workoutData);
+            }
             setShowSummary(false);
           }}
           onShare={async () => {
@@ -387,9 +405,13 @@ export default function TabataSession() {
             name: workout.name,
             type: "TABATA",
             exercises: workout.exercises,
+            duration: totalTime.toString(),
+            difficulty: "medium",
+            targetMuscles: [],
+            // Include TABATA-specific fields
             workTime: workout.workTime,
             restTime: workout.restTime,
-            rounds: workout.rounds,
+            rounds: workout.rounds
           }}
           duration={totalTime}
           completedAt={completedAt || new Date()}

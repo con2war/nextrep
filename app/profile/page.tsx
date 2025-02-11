@@ -109,38 +109,65 @@ export default function Profile() {
     }
   }, [user])
 
-const handleWorkoutClick = (workout: SavedWorkout) => {
-  if (workout.type === "DAILY") {
-    // For DAILY workouts, ensure we have the proper structure
-    let parsedExercises = workout.exercises;
-    
-    // If exercises is a string, parse it
-    if (typeof parsedExercises === 'string') {
-      try {
-        parsedExercises = JSON.parse(parsedExercises);
-      } catch (error) {
-        console.error('Error parsing exercises:', error);
-        parsedExercises = {};
-      }
+  // In your Profile page component
+
+  const handleWorkoutClick = (workout: any) => {
+    if (!workout) {
+      console.error("Invalid favorite workout data:", workout);
+      return;
     }
 
-    // Create a properly structured workout object
-    const structuredWorkout = {
-      ...workout,
-      warmup: workout.warmup || parsedExercises.warmup || [],
-      mainWorkout: workout.mainWorkout || parsedExercises.mainWorkout || [],
-      cooldown: workout.cooldown || parsedExercises.cooldown || [],
-      exercises: parsedExercises
-    };
+    console.log("Selected workout data:", workout); // Log the workout data
 
-    console.log("Structured DAILY workout:", structuredWorkout);
-    setSelectedWorkout(structuredWorkout);
-  } else {
-    // For non-DAILY workouts, use as is
-    setSelectedWorkout(workout);
-  }
-  setIsModalOpen(true);
-};
+    if (workout.type === 'DAILY') {
+      // For DAILY workouts, ensure we have the proper structure.
+      // If the workout does not already have the warmup, mainWorkout, cooldown arrays,
+      // try to parse the exercises field.
+      let parsedExercises = workout.exercises;
+      if (typeof parsedExercises === 'string') {
+        try {
+          parsedExercises = JSON.parse(parsedExercises);
+        } catch (error) {
+          console.error('Error parsing exercises:', error);
+          parsedExercises = {};
+        }
+      }
+      const structuredWorkout = {
+        ...workout,
+        warmup: workout.warmup || parsedExercises.warmup || [],
+        mainWorkout: workout.mainWorkout || parsedExercises.mainWorkout || [],
+        cooldown: workout.cooldown || parsedExercises.cooldown || [],
+        exercises: parsedExercises,
+      };
+      console.log("Structured DAILY workout:", structuredWorkout);
+      setSelectedWorkout(structuredWorkout);
+    } else {
+      // For non-DAILY workouts, parse the exercises field if necessary
+      const structuredWorkout = {
+        ...workout,
+        exercises:
+          typeof workout.exercises === 'string'
+            ? JSON.parse(workout.exercises)
+            : workout.exercises,
+        ...(workout.type === 'TABATA' && {
+          workTime: Number(workout.workTime || 0),
+          restTime: Number(workout.restTime || 0),
+          rounds: Number(workout.rounds || 0),
+          ...(workout.type === 'EMOM' && {
+            roundsPerMovement: Number(workout.roundsPerMovement || 0),
+            intervalTime: Number(workout.intervalTime || 0),
+          }),
+          ...(workout.type === 'AMRAP' && {
+            timeCap: Number(workout.timeCap || 0),
+          }),
+        }),
+      };
+      console.log("Structured workout:", structuredWorkout);
+      setSelectedWorkout(structuredWorkout);
+    }
+    setIsModalOpen(true);
+  };
+
 
 
   // Format and save the workout data, then navigate to the proper session page.
@@ -172,7 +199,7 @@ const handleWorkoutClick = (workout: SavedWorkout) => {
           cooldown: workout.cooldown || [],
         };
       }
-  
+
       localStorage.setItem("selectedWorkout", JSON.stringify(formattedWorkout));
 
       // If it's an EMOM workout, navigate to the EMOM session page.
@@ -203,11 +230,11 @@ const handleWorkoutClick = (workout: SavedWorkout) => {
       const response = await fetch(`/api/workouts/favorites/${workoutId}`, {
         method: 'DELETE',
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to delete workout');
       }
-      
+
       // Update the local state to remove the deleted workout
       setSavedWorkouts(savedWorkouts.filter(workout => workout.id !== workoutId));
     } catch (error) {
@@ -225,11 +252,11 @@ const handleWorkoutClick = (workout: SavedWorkout) => {
       const response = await fetch('/api/workouts/favorites/delete-all', {
         method: 'DELETE',
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to delete all workouts');
       }
-      
+
       // Clear the local state
       setSavedWorkouts([]);
     } catch (error) {
@@ -464,15 +491,23 @@ const handleWorkoutClick = (workout: SavedWorkout) => {
       {/* Custom Modal: Display complete workout details with unique fields and a Start Workout button */}
       {isModalOpen && selectedWorkout && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto relative">
+            {/* Close button */}
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
             <div className="p-6">
-              {/* Modal Header */}
               <div className="mb-4">
                 <h2 className="text-xl font-bold text-center">Workout Details</h2>
               </div>
 
               <div className="space-y-4">
-                {/* Basic Details */}
                 <div>
                   <h3 className="font-medium text-gray-900">
                     {selectedWorkout.name || selectedWorkout.type}
@@ -483,10 +518,8 @@ const handleWorkoutClick = (workout: SavedWorkout) => {
                   )}
                 </div>
 
-                {/* Exercises Sections */}
                 {selectedWorkout.type === "DAILY" && (
                   <>
-                    {/* Warmup Section */}
                     {selectedWorkout.warmup && selectedWorkout.warmup.length > 0 && (
                       <div>
                         <h3 className="font-medium text-gray-900 mb-2">Warm Up</h3>
@@ -502,7 +535,6 @@ const handleWorkoutClick = (workout: SavedWorkout) => {
                       </div>
                     )}
 
-                    {/* Main Workout Section */}
                     {selectedWorkout.mainWorkout && selectedWorkout.mainWorkout.length > 0 && (
                       <div>
                         <h3 className="font-medium text-gray-900 mb-2">Main Workout</h3>
@@ -521,7 +553,6 @@ const handleWorkoutClick = (workout: SavedWorkout) => {
                       </div>
                     )}
 
-                    {/* Cooldown Section */}
                     {selectedWorkout.cooldown && selectedWorkout.cooldown.length > 0 && (
                       <div>
                         <h3 className="font-medium text-gray-900 mb-2">Cool Down</h3>
@@ -538,7 +569,6 @@ const handleWorkoutClick = (workout: SavedWorkout) => {
                   </>
                 )}
 
-                {/* Non-DAILY workout exercises */}
                 {selectedWorkout.type !== "DAILY" && (
                   <div>
                     <h3 className="font-medium mb-2">Exercises</h3>
@@ -573,7 +603,54 @@ const handleWorkoutClick = (workout: SavedWorkout) => {
                   </div>
                 )}
 
-                {/* Stats */}
+                {selectedWorkout.type === 'TABATA' && (
+                  <div className="mt-4">
+                    <h3 className="font-medium text-gray-900 mb-2">Tabata Details</h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Work Time</p>
+                        <p className="font-medium">{selectedWorkout.workTime}s</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Rest Time</p>
+                        <p className="font-medium">{selectedWorkout.restTime}s</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Rounds</p>
+                        <p className="font-medium">{selectedWorkout.rounds}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedWorkout.type === 'EMOM' && (
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-2">EMOM Details</h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Rounds Per Movement</p>
+                        <p className="font-medium">{selectedWorkout.roundsPerMovement}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Interval Time</p>
+                        <p className="font-medium">{selectedWorkout.intervalTime}s</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedWorkout.type === 'AMRAP' && (
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-2">AMRAP Details</h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Time Cap</p>
+                        <p className="font-medium">{selectedWorkout.timeCap}mins</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4 py-4 border-y border-gray-100">
                   <div>
                     <p className="text-sm text-gray-500">Duration</p>
@@ -587,7 +664,6 @@ const handleWorkoutClick = (workout: SavedWorkout) => {
                   </div>
                 </div>
 
-                {/* Target Muscles */}
                 {selectedWorkout.targetMuscles && selectedWorkout.targetMuscles.length > 0 && (
                   <div>
                     <h3 className="font-medium mb-2">Target Muscles</h3>
@@ -602,7 +678,6 @@ const handleWorkoutClick = (workout: SavedWorkout) => {
                 )}
               </div>
 
-              {/* Action Buttons */}
               <button
                 onClick={() => {
                   setIsModalOpen(false)

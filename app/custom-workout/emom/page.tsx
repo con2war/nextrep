@@ -50,7 +50,7 @@ export default function EmomWorkout() {
 
     // Calculate total rounds
     const totalRounds = workout.roundsPerMovement * workout.exercises.length
-    
+
     // Calculate total workout time based on interval time and total rounds
     const totalTime = workout.intervalTime * totalRounds
 
@@ -116,16 +116,13 @@ export default function EmomWorkout() {
         if (!workout.intervalTime) return
         if (!workout.roundsPerMovement) return
 
-        // Convert interval to seconds if needed
         const workoutToSave = {
             ...workout,
-            intervalTime: workout.intervalUnit === 'minutes' ? 
-                workout.intervalTime * 60 : 
-                workout.intervalTime
-        }
+            intervalTime: workout.intervalUnit === 'minutes' ? workout.intervalTime * 60 : workout.intervalTime,
+            // Make sure roundsPerMovement is also there (it should be set in your initial state or updated by the user)
+        };
+        localStorage.setItem('currentEmomWorkout', JSON.stringify(workoutToSave));
 
-        // Store the workout in localStorage before navigating
-        localStorage.setItem('currentEmomWorkout', JSON.stringify(workoutToSave))
         router.push('/custom-workout/emom/session')
     }
 
@@ -141,11 +138,11 @@ export default function EmomWorkout() {
         // Update the exercise name as user types
         updateExercise(exerciseId, { name: value })
         setCurrentExerciseId(exerciseId)
-        
+
         // Show suggestions if we have 2 or more characters
         if (value.length >= 2) {
             const filtered = exercises
-                .filter(ex => 
+                .filter(ex =>
                     ex.name.toLowerCase().includes(value.toLowerCase()) ||
                     ex.muscle.toLowerCase().includes(value.toLowerCase())
                 )
@@ -171,7 +168,7 @@ export default function EmomWorkout() {
             const exerciseInput = document.querySelector('.exercise-input')
 
             // Check if click is outside both the suggestions and input
-            if (suggestionsContainer && exerciseInput && 
+            if (suggestionsContainer && exerciseInput &&
                 !suggestionsContainer.contains(event.target as Node) &&
                 !exerciseInput.contains(event.target as Node)) {
                 setShowSuggestions(false)
@@ -236,9 +233,9 @@ export default function EmomWorkout() {
                                         onChange={(e) => updateInterval(e.target.value)}
                                         onBlur={() => {
                                             if (!workout.intervalTime) {
-                                                setWorkout({ 
-                                                    ...workout, 
-                                                    intervalTime: workout.intervalUnit === 'seconds' ? 30 : 1 
+                                                setWorkout({
+                                                    ...workout,
+                                                    intervalTime: workout.intervalUnit === 'seconds' ? 30 : 1
                                                 })
                                             }
                                         }}
@@ -248,8 +245,8 @@ export default function EmomWorkout() {
                                 </div>
                                 <select
                                     value={workout.intervalUnit}
-                                    onChange={(e) => setWorkout({ 
-                                        ...workout, 
+                                    onChange={(e) => setWorkout({
+                                        ...workout,
                                         intervalUnit: e.target.value as 'seconds' | 'minutes',
                                         intervalTime: e.target.value === 'seconds' ? 30 : 1
                                     })}
@@ -325,9 +322,9 @@ export default function EmomWorkout() {
                                         onKeyDown={(e) => handleKeyDown(e, exercise.id)}
                                         className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 exercise-input"
                                     />
-                                    
+
                                     {showSuggestions && currentExerciseId === exercise.id && (
-                                        <div 
+                                        <div
                                             className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container"
                                         >
                                             {suggestions.map((suggestion, idx) => (

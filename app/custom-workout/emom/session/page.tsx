@@ -80,17 +80,24 @@ export default function EmomSession() {
     }
   };
 
-  // Load the EMOM workout from localStorage on mount.
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentEmomWorkout");
     if (savedWorkout) {
       const parsed = JSON.parse(savedWorkout) as EmomWorkout;
+      // If the EMOM-specific fields are missing or null, assign default values.
+      if (!parsed.intervalTime) {
+        parsed.intervalTime = 30; // default to 30 seconds, for example
+      }
+      if (!parsed.roundsPerMovement) {
+        parsed.roundsPerMovement = 1; // default to 1 round per movement
+      }
       setWorkout(parsed);
       setTimeRemaining(parsed.intervalTime);
     } else {
       router.push("/custom-workout/emom");
     }
   }, [router]);
+  
 
   // Timer effect: decrease timeRemaining every second.
   useEffect(() => {
