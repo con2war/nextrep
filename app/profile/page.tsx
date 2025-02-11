@@ -425,14 +425,6 @@ export default function Profile() {
           </>
         ) : (
           <div className="space-y-4">
-            {savedWorkouts.length > 0 && (
-              <button
-                onClick={handleDeleteAllWorkouts}
-                className="w-full mb-4 bg-red-500 text-white font-medium px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
-              >
-                Delete All Favorites (Temporary)
-              </button>
-            )}
             {savedWorkouts.length === 0 ? (
               <div className="text-center py-8 text-gray-400">No saved workouts yet</div>
             ) : (
@@ -450,7 +442,7 @@ export default function Profile() {
                       <div className="flex items-center gap-2">
                         <Dumbbell className="w-5 h-5 text-blue-500" />
                         <span className="font-medium">
-                          {workout.type} Workout
+                          {workout.name || workout.type}
                         </span>
                       </div>
                       <span className="text-sm text-gray-500">
@@ -687,6 +679,20 @@ export default function Profile() {
               >
                 <Play className="w-5 h-5" />
                 Start Workout
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm('Remove this workout from favorites?')) {
+                    handleDeleteWorkout(selectedWorkout.id);
+                    setIsModalOpen(false);
+                  }
+                }}
+                className="mt-2 w-full flex items-center justify-center gap-2 p-4 text-red-500 hover:text-red-600 transition-colors"
+              >
+                <Heart className="w-5 h-5 fill-current" />
+                Remove from Favorites
               </button>
             </div>
           </div>

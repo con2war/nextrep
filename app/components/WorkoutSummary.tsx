@@ -9,6 +9,8 @@ import { useState } from "react";
 interface Exercise {
   exercise: string;
   name?: string;
+  metric?: 'reps' | 'distance' | 'calories';
+  amount?: number;
   sets?: number;
   reps?: number | string;
   weight?: number;
@@ -101,8 +103,6 @@ export default function WorkoutSummary({
         }),
       };
 
-      console.log("Saving workout data:", workoutData);
-
       const response = await fetch('/api/workouts/save', {
         method: 'POST',
         headers: {
@@ -110,19 +110,15 @@ export default function WorkoutSummary({
         },
         body: JSON.stringify(workoutData),
       });
-
-      const savedData = await response.json();
-      console.log("Saved workout response:", savedData);
-      
-      // Show confirmation modal with saved data
-      setSavedWorkoutData(savedData);
-      setShowConfirmation(true);
-      setIsSaved(true);
+  
+      if (response.ok) {
+        // Immediately redirect to profile page on successful save
+        window.location.href = '/profile';
+      } else {
+        throw new Error('Failed to save workout');
+      }
     } catch (error) {
-      console.error('Save error:', error);
       setSaveError('Failed to save workout');
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -243,16 +239,16 @@ export default function WorkoutSummary({
                           <span className="font-medium">
                             {exercise.name || exercise.exercise}
                           </span>
+                          {exercise.metric && (
+                            <span className="text-gray-500">
+                              {" "}
+                              • {exercise.amount || ""} {exercise.metric}
+                            </span>
+                          )}
                           {exercise.sets && (
                             <span className="text-gray-500">
                               {" "}
                               • {exercise.sets} sets
-                            </span>
-                          )}
-                          {exercise.reps && (
-                            <span className="text-gray-500">
-                              {" "}
-                              • {exercise.reps} reps
                             </span>
                           )}
                           {exercise.duration && (

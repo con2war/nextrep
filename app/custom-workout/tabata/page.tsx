@@ -25,15 +25,15 @@ interface TabataWorkout {
 }
 
 interface GymExercise {
-    name: string
-    type: string
-    equipment: string
-    difficulty: string
-    muscle: string
-    description: string
+  name: string
+  type: string
+  equipment: string
+  difficulty: string
+  muscle: string
+  description: string
 }
 
-export default function TabataWorkout() {
+export default function TabataWorkoutCreator() {
   const router = useRouter()
   const [workout, setWorkout] = useState<TabataWorkout>({
     name: "",
@@ -59,13 +59,13 @@ export default function TabataWorkout() {
 
   // Handle exercise input and suggestions
   const handleExerciseInput = (value: string, exerciseId: string) => {
-    setCurrentExercise(value)
     updateExercise(exerciseId, { name: value })
+    setCurrentExercise(value)
     setCurrentExerciseId(exerciseId)
-    
+
     if (value.length >= 2) {
       const filtered = exercises
-        .filter(ex => 
+        .filter(ex =>
           ex.name.toLowerCase().includes(value.toLowerCase()) ||
           ex.muscle.toLowerCase().includes(value.toLowerCase())
         )
@@ -77,31 +77,28 @@ export default function TabataWorkout() {
     }
   }
 
-  // Super simple suggestion click handler - just update the exercise name
   const handleSuggestionClick = (selectedName: string, exerciseId: string) => {
-    console.log('Selected:', selectedName) // Debug log
     updateExercise(exerciseId, { name: selectedName })
     setShowSuggestions(false)
     setCurrentExerciseId(null)
   }
 
-  // Handle keyboard events
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter' || event.key === 'Escape') {
       setShowSuggestions(false)
+      setCurrentExerciseId(null)
     }
   }
 
-  // Update rounds with better handling
   const updateRounds = (value: string) => {
     const parsedValue = value === '' ? '' : parseInt(value)
-    setWorkout({ 
-      ...workout, 
+    setWorkout({
+      ...workout,
       rounds: parsedValue === '' ? '' as unknown as number : Math.max(1, parsedValue || 1)
     })
   }
 
-  // Calculate total workout time
+  // Calculate total workout time in minutes.
   const totalTime = Math.ceil(
     (workout.exercises.length * workout.rounds * ((workout.workTime ?? 0) + (workout.restTime ?? 0))) / 60
   )
@@ -109,18 +106,21 @@ export default function TabataWorkout() {
   const addExercise = () => {
     setWorkout({
       ...workout,
-      exercises: [...workout.exercises, {
-        id: Date.now().toString(),
-        name: '',
-        metric: 'reps'
-      }]
+      exercises: [
+        ...workout.exercises,
+        {
+          id: Date.now().toString(),
+          name: '',
+          metric: 'reps'
+        }
+      ]
     })
   }
 
   const updateExercise = (exerciseId: string, updates: Partial<Exercise>) => {
     setWorkout({
       ...workout,
-      exercises: workout.exercises.map(exercise => 
+      exercises: workout.exercises.map(exercise =>
         exercise.id === exerciseId ? { ...exercise, ...updates } : exercise
       )
     })
@@ -133,14 +133,24 @@ export default function TabataWorkout() {
     })
   }
 
+  // New: Handle metric change by resetting previous values and initializing the new metric.
+  const handleMetricChange = (e: React.ChangeEvent<HTMLSelectElement>, exerciseId: string) => {
+    const newMetric = e.target.value as 'reps' | 'distance' | 'calories'
+    updateExercise(exerciseId, {
+      metric: newMetric,
+      reps: undefined,
+      distance: undefined,
+      calories: undefined,
+      [newMetric]: 0, // Initialize the new metric value to 0.
+    })
+  }
+
   const startWorkout = () => {
-    // Validate workout
     if (workout.exercises.length === 0) return
     if (!workout.workTime) return
     if (!workout.restTime) return
     if (!workout.rounds) return
 
-    // Store the workout in localStorage before navigating
     localStorage.setItem('currentTabataWorkout', JSON.stringify(workout))
     router.push('/custom-workout/tabata/session')
   }
@@ -148,12 +158,10 @@ export default function TabataWorkout() {
   // Handle click outside to close suggestions
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Get the suggestions container
       const suggestionsContainer = document.querySelector('.suggestions-container')
       const exerciseInput = document.querySelector('.exercise-input')
 
-      // Check if click is outside both the suggestions and input
-      if (suggestionsContainer && exerciseInput && 
+      if (suggestionsContainer && exerciseInput &&
           !suggestionsContainer.contains(event.target as Node) &&
           !exerciseInput.contains(event.target as Node)) {
         setShowSuggestions(false)
@@ -190,7 +198,7 @@ export default function TabataWorkout() {
           />
         </div>
 
-        {/* Work/Rest Time Inputs - Moved up */}
+        {/* Work/Rest Time Inputs */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div>
             <label className="block text-sm text-gray-600 mb-2">Work Time (seconds)</label>
@@ -255,18 +263,18 @@ export default function TabataWorkout() {
           </div>
         </div>
 
-        {/* Exercises */}
+        {/* Exercises Section */}
         <div className="space-y-4 mb-8">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium">Exercises</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-medium">Exercises</h2>
             <span className="text-sm text-gray-500">
               {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
             </span>
           </div>
-          {workout.exercises.map((exercise, index) => (
+          {workout.exercises.map((exercise) => (
             <div key={exercise.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="flex items-center gap-4">
-                <span className="text-gray-500 font-medium">#{index + 1}</span>
+                <span className="text-gray-500 font-medium">#{exercise.id}</span>
                 <div className="relative">
                   <input
                     type="text"
@@ -313,12 +321,7 @@ export default function TabataWorkout() {
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <select
                   value={exercise.metric}
-                  onChange={(e) => updateExercise(exercise.id, { 
-                    metric: e.target.value as 'reps' | 'distance' | 'calories',
-                    reps: undefined,
-                    distance: undefined,
-                    calories: undefined
-                  })}
+                  onChange={(e) => handleMetricChange(e, exercise.id)}
                   className="p-2 rounded border border-gray-200"
                 >
                   <option value="reps">Target Reps</option>
@@ -328,14 +331,22 @@ export default function TabataWorkout() {
                 <input
                   type="number"
                   min="0"
-                  placeholder={exercise.metric === 'reps' ? 'Target reps per interval' : 
-                             exercise.metric === 'distance' ? 'Target distance per interval' : 
-                             'Target calories per interval'}
-                  value={exercise.metric === 'reps' ? exercise.reps || '' :
-                         exercise.metric === 'distance' ? exercise.distance || '' :
-                         exercise.calories || ''}
+                  placeholder={
+                    exercise.metric === 'reps'
+                      ? 'Target reps per interval'
+                      : exercise.metric === 'distance'
+                      ? 'Target distance per interval'
+                      : 'Target calories per interval'
+                  }
+                  value={
+                    exercise.metric === 'reps'
+                      ? exercise.reps || ''
+                      : exercise.metric === 'distance'
+                      ? exercise.distance || ''
+                      : exercise.calories || ''
+                  }
                   onChange={(e) => {
-                    const value = parseInt(e.target.value) || 0
+                    const value = parseInt(e.target.value)
                     updateExercise(exercise.id, {
                       [exercise.metric]: value
                     })
@@ -348,7 +359,7 @@ export default function TabataWorkout() {
                 <input
                   type="number"
                   value={exercise.weight || ''}
-                  onChange={(e) => updateExercise(exercise.id, { weight: parseInt(e.target.value) })}
+                  onChange={(e) => updateExercise(exercise.id, { weight: parseInt(e.target.value) || 0 })}
                   className="w-full p-2 rounded border border-gray-200"
                 />
               </div>
@@ -364,14 +375,14 @@ export default function TabataWorkout() {
           
           <button
             onClick={addExercise}
-            className="w-full p-3 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/5 transition-all flex items-center justify-center gap-2"
+            className="w-full p-3 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/5 transition-all flex items-center justify-center gap-2"
           >
             <Plus className="w-5 h-5" />
             Add Exercise
           </button>
         </div>
 
-        {/* Total Time Display - Moved below Add Exercise button */}
+        {/* Total Time Display */}
         <div className="mb-8 p-4 rounded-lg border border-blue-200 bg-blue-50/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -404,15 +415,15 @@ export default function TabataWorkout() {
           </div>
         )}
 
-        {/* Action Buttons - Updated to match other workout pages */}
+        {/* Action Buttons */}
         <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-200 p-4 z-50">
           <div className="container max-w-md mx-auto grid grid-cols-2 gap-3">
-            <button 
-              className="px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 text-gray-600 hover:text-blue-600"
+            <Link
+              href="/custom-workout"
+              className="px-4 py-3 rounded-xl border border-gray-200 text-center hover:border-gray-300 transition-colors"
             >
-              <Save className="w-4 h-4" />
-              Save
-            </button>
+              Cancel
+            </Link>
             <button
               onClick={startWorkout}
               disabled={workout.exercises.length === 0}
