@@ -1,4 +1,5 @@
-"use client"
+// app/custom-workout/tabata/session/page.tsx
+"use client";
 
 import { useState, useEffect } from "react";
 import { Play, Pause, XCircle, ChevronLeft, Volume2, VolumeX } from "lucide-react";
@@ -28,7 +29,7 @@ interface TabataWorkout {
   restTime: number; // seconds for rest period
 }
 
-export default function TabataSession({ onSave }: { onSave?: (workout: any) => void }) {
+export default function TabataSession() {
   const router = useRouter();
   const [workout, setWorkout] = useState<TabataWorkout | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -45,7 +46,7 @@ export default function TabataSession({ onSave }: { onSave?: (workout: any) => v
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
 
-  // Load Tabata workout from localStorage on mount
+  // Load Tabata workout from localStorage on mount.
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentTabataWorkout");
     if (savedWorkout) {
@@ -61,7 +62,7 @@ export default function TabataSession({ onSave }: { onSave?: (workout: any) => v
     }
   }, [router]);
 
-  // Initialize beep sound on mount
+  // Initialize beep sound on mount.
   useEffect(() => {
     const audio = new Audio("/beep.mp3");
     audio.volume = 0.5;
@@ -159,21 +160,21 @@ export default function TabataSession({ onSave }: { onSave?: (workout: any) => v
     setShowSummary(true);
   };
 
-  // Timer logic: alternate work and rest intervals
+  // Timer logic: alternate work and rest intervals.
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRunning && !isPaused && workout) {
       interval = setInterval(() => {
         setTimeRemaining((prevTime) => {
           const newTime = prevTime - 1;
-          // Play beep at 3 seconds remaining
+          // Play beep at 3 seconds remaining.
           if (newTime === 3) {
             console.log("3 seconds remaining - Playing beep");
             beep();
           }
           // When current interval ends:
           if (newTime <= 0) {
-            // Calculate total rounds = rounds * number of exercises
+            // Calculate total rounds = rounds * number of exercises.
             const totalRounds = workout.rounds * workout.exercises.length;
             if (currentRound >= totalRounds) {
               handleComplete();
@@ -182,12 +183,12 @@ export default function TabataSession({ onSave }: { onSave?: (workout: any) => v
             const nextRound = currentRound + 1;
             setCurrentRound(nextRound);
             if (isWorkInterval) {
-              // Transition from work to rest
+              // Transition from work to rest.
               speak("Rest");
               setTimeRemaining(workout.restTime);
               setIsWorkInterval(false);
             } else {
-              // Transition from rest to work: update exercise index and set work time
+              // Transition from rest to work: update exercise index and set work time.
               const nextIndex = (currentExerciseIndex + 1) % workout.exercises.length;
               setCurrentExerciseIndex(nextIndex);
               setTimeRemaining(workout.workTime);
@@ -203,7 +204,7 @@ export default function TabataSession({ onSave }: { onSave?: (workout: any) => v
     return () => clearInterval(interval);
   }, [isRunning, isPaused, workout, currentRound, isWorkInterval, currentExerciseIndex]);
 
-  // Announce the first exercise on mount
+  // Announce the first exercise on mount.
   useEffect(() => {
     if (workout && workout.exercises.length > 0) {
       speak(`${workout.exercises[0].name}, Round 1`);
@@ -315,11 +316,7 @@ export default function TabataSession({ onSave }: { onSave?: (workout: any) => v
               className={`p-2 rounded-lg ${isAudioEnabled ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"} text-white transition-colors`}
               title={isAudioEnabled ? "Disable Audio" : "Enable Audio"}
             >
-              {isAudioEnabled ? (
-                <Volume2 className="w-5 h-5" />
-              ) : (
-                <VolumeX className="w-5 h-5" />
-              )}
+              {isAudioEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
             </button>
           </div>
         </div>
@@ -337,13 +334,9 @@ export default function TabataSession({ onSave }: { onSave?: (workout: any) => v
               <div key={exercise.id}>
                 <p className="font-medium">{exercise.name}</p>
                 <p className="text-sm text-gray-500">
-                  {exercise.metric === "reps" && exercise.reps
-                    ? `${exercise.reps} reps`
-                    : exercise.metric === "distance" && exercise.distance
-                    ? `${exercise.distance}m`
-                    : exercise.metric === "calories" && exercise.calories
-                    ? `${exercise.calories} cals`
-                    : ""}
+                  {exercise.metric === "reps" && exercise.reps ? `${exercise.reps} reps` : ""}
+                  {exercise.metric === "distance" && exercise.distance ? `${exercise.distance}m` : ""}
+                  {exercise.metric === "calories" && exercise.calories ? `${exercise.calories} cals` : ""}
                   {exercise.weight ? ` (${exercise.weight}kg)` : ""}
                 </p>
                 {exercise.notes && (
@@ -354,68 +347,35 @@ export default function TabataSession({ onSave }: { onSave?: (workout: any) => v
           </div>
         </div>
 
-        {/* WorkoutSummary Component */}
-        <WorkoutSummary
-          isOpen={showSummary}
-          onClose={() => setShowSummary(false)}
-          onSave={() => {
-            // Create the workout data with all TABATA-specific fields
-            const workoutData = {
-              name: workout.name,
-              type: "TABATA",
-              exercises: workout.exercises,
-              duration: totalTime.toString(),
-              difficulty: "medium",
-              targetMuscles: [],
-              // Add TABATA-specific fields
-              workTime: workout.workTime,
-              restTime: workout.restTime,
-              rounds: workout.rounds
-            };
-
-            console.log("Saving TABATA workout:", workoutData);
-            
-            // Pass the complete workout data to the save handler
-            if (onSave) {
-              onSave(workoutData);
-            }
-            setShowSummary(false);
-          }}
-          onShare={async () => {
-            try {
-              const shareData = {
-                title: workout?.name || "Tabata Workout",
-                text: `I completed ${workout?.name} - ${workout?.rounds} rounds of ${workout?.exercises.length} exercises!`,
-                url: window.location.href,
-              };
-              if (navigator.share) {
-                await navigator.share(shareData);
-              } else {
-                await navigator.clipboard.writeText(
-                  `${shareData.title}\n${shareData.text}\n${shareData.url}`
-                );
-                alert("Workout details copied to clipboard!");
-              }
-            } catch (error) {
-              console.error("Error sharing:", error);
-            }
-            setShowSummary(false);
-          }}
-          workout={{
-            name: workout.name,
-            type: "TABATA",
-            exercises: workout.exercises,
-            duration: totalTime.toString(),
-            difficulty: "medium",
-            targetMuscles: [],
-            // Include TABATA-specific fields
-            workTime: workout.workTime,
-            restTime: workout.restTime,
-            rounds: workout.rounds
-          }}
-          duration={totalTime}
-          completedAt={completedAt || new Date()}
-        />
+        {/* End-of-Workout Summary Modal */}
+        {showSummary && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                {/* Render WorkoutSummary WITHOUT hideActions so default Save/Share/Exit buttons appear */}
+                <WorkoutSummary
+                  isOpen={true}
+                  onClose={() => setShowSummary(false)}
+                  onSave={() => {}}
+                  onShare={async () => {}}
+                  workout={{
+                    name: workout.name,
+                    type: "TABATA",
+                    exercises: workout.exercises,
+                    duration: totalTime.toString(),
+                    difficulty: "medium",
+                    targetMuscles: [],
+                    workTime: workout.workTime,
+                    restTime: workout.restTime,
+                    rounds: workout.rounds,
+                  }}
+                  duration={totalTime}
+                  completedAt={completedAt || new Date()}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
