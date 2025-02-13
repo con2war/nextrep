@@ -771,10 +771,14 @@ export default function DailyWorkout() {
 
               <button
                 onClick={handleGenerateWorkout}
-                disabled={selectedMuscleGroups.length === 0}
-                className="w-full py-3 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                disabled={selectedMuscleGroups.length === 0 || loading}
+                className={`w-full py-3 px-4 text-white rounded-lg transition-colors ${
+                  loading && selectedMuscleGroups.length > 0
+                    ? "bg-purple-500 hover:bg-purple-600" 
+                    : "bg-blue-500 hover:bg-blue-600"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                {loading ? "Generating Workout..." : "Generate Workout"}
+                {loading && selectedMuscleGroups.length > 0 ? "Generating Workout..." : "Generate Workout"}
               </button>
 
               {error && (

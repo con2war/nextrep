@@ -111,11 +111,11 @@ export default function Profile() {
     const fetchSavedWorkouts = async () => {
       try {
         const response = await fetch("/api/workouts/favorites");
-        if (!response.ok) throw new Error("Failed to fetch favorites");
+        if (!response.ok) throw new Error("Failed to fetch favourites");
         const data = await response.json();
         setSavedWorkouts(data);
       } catch (error) {
-        console.error("Error fetching favorites:", error);
+        console.error("Error fetching favourites:", error);
       }
     };
 
@@ -257,7 +257,7 @@ export default function Profile() {
     try {
       if (
         !confirm(
-          "Are you sure you want to delete ALL favorited workouts? This cannot be undone."
+          "Are you sure you want to delete ALL favourited workouts? This cannot be undone."
         )
       ) {
         return;
@@ -311,7 +311,7 @@ export default function Profile() {
                 <Heart className="w-6 h-6 text-blue-500" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Save Favorites
+                Save Favourites
               </h3>
               <p className="text-gray-600">
                 Keep track of your preferred workouts and access them anytime
@@ -379,7 +379,7 @@ export default function Profile() {
                   : "text-gray-600 hover:text-blue-600"
               }`}
             >
-              Favorites
+              Favourites
               {activeTab === "favorites" && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
               )}
@@ -423,7 +423,7 @@ export default function Profile() {
             {/* Recent Favorites */}
             <div className="mb-8">
               <h3 className="text-lg font-medium text-gray-700 mb-4">
-                Recently Favorited
+                Recently Favourited
               </h3>
               <div className="space-y-3">
                 {userStats?.recentWorkouts && userStats.recentWorkouts.length > 0 ? (
@@ -453,7 +453,7 @@ export default function Profile() {
                   ))
                 ) : (
                   <p className="text-center text-gray-500 py-4">
-                    No favorited workouts yet
+                    No favourited workouts yet
                   </p>
                 )}
               </div>
@@ -785,7 +785,7 @@ export default function Profile() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (confirm("Remove this workout from favorites?")) {
+                  if (confirm("Remove this workout from favourites?")) {
                     handleDeleteWorkout(selectedWorkout.id);
                     setIsModalOpen(false);
                   }
@@ -793,7 +793,7 @@ export default function Profile() {
                 className="mt-2 w-full flex items-center justify-center gap-2 p-4 text-red-500 hover:text-red-600 transition-colors"
               >
                 <Heart className="w-5 h-5 fill-current" />
-                Remove from Favorites
+                Remove from Favourites
               </button>
             </div>
           </div>

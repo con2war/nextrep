@@ -261,17 +261,6 @@ export default function WorkoutSession({
               className="h-12 w-auto"
             />
           </div>
-          <button
-            onClick={() => {
-              setCompletedAt(new Date());
-              setShowSummary(true);
-              speak("Well Done");
-            }}
-            className="text-gray-600 hover:text-red-500 transition-colors flex items-center gap-2"
-          >
-            <span>End Workout</span>
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* Timer Display */}
@@ -339,7 +328,9 @@ export default function WorkoutSession({
           {Object.entries(exercises).map(([section, sectionExercises]) => (
             <section key={section}>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                {section.replace(/([A-Z])/g, " $1").trim()}
+                {section === 'warmup' ? 'Warm Up' :
+                 section === 'mainWorkout' ? 'Main Workout' :
+                 section === 'cooldown' ? 'Cool Down' : ''}
               </h3>
               <div className="space-y-4">
                 {sectionExercises.map((exercise: Exercise, index: number) => (
@@ -473,6 +464,23 @@ export default function WorkoutSession({
           duration={timer}
           completedAt={completedAt || new Date()}
         />
+
+        {/* Add End Workout button at the bottom */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-200 p-4 z-50">
+          <div className="max-w-2xl mx-auto">
+            <button
+              onClick={() => {
+                setCompletedAt(new Date());
+                setShowSummary(true);
+                speak("Well Done");
+              }}
+              className="w-full bg-red-500 hover:bg-red-600 text-white py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <span>End Workout</span>
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
       </main>
     </div>
   );

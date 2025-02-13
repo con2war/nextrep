@@ -274,7 +274,7 @@ export default function TabataWorkoutCreator() {
           {workout.exercises.map((exercise) => (
             <div key={exercise.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="flex items-center gap-4">
-                <span className="text-gray-500 font-medium">#{exercise.id}</span>
+                <span className="text-gray-500 font-medium"></span>
                 <div className="relative">
                   <input
                     type="text"

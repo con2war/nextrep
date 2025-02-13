@@ -158,6 +158,14 @@ export default function AmrapWorkout() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Add handleKeyDown function
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === 'Escape') {
+      setShowSuggestions(false)
+      setCurrentExerciseId(null)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <main className="max-w-2xl mx-auto px-4 py-8">
@@ -254,6 +262,7 @@ export default function AmrapWorkout() {
                   value={exercise.name}
                   onChange={(e) => handleExerciseInput(e.target.value, exercise.id)}
                   onFocus={() => setCurrentExerciseId(exercise.id)}
+                  onKeyDown={handleKeyDown}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 exercise-input"
                 />
                 

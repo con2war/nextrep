@@ -313,7 +313,7 @@ export default function EmomWorkoutCreator() {
             {workout.exercises.map((exercise) => (
               <div key={exercise.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-gray-500">#{exercise.id}</span>
+                  <span className="text-sm font-medium text-gray-500"></span>
                   <button
                     onClick={() => removeExercise(exercise.id)}
                     className="text-gray-400 hover:text-red-500 transition-colors"
@@ -375,7 +375,7 @@ export default function EmomWorkoutCreator() {
                     type="number"
                     min="0"
                     placeholder="Amount"
-                    value={exercise[exercise.metric] || ""}
+                    value={typeof exercise[exercise.metric] === 'number' ? exercise[exercise.metric] || '' : ''}
                     onChange={(e) => handleMetricValueChange(e, exercise.id, exercise.metric)}
                     onBlur={(e) => handleMetricValueBlur(e, exercise.id, exercise.metric)}
                     className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
