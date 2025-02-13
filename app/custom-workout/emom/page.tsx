@@ -40,7 +40,7 @@ export default function EmomWorkoutCreator() {
     name: "",
     intervalTime: 30,
     intervalUnit: 'seconds',
-    roundsPerMovement: 1,
+    roundsPerMovement: 0,
     exercises: []
   })
   const [exercises, setExercises] = useState<GymExercise[]>([])
@@ -254,12 +254,12 @@ export default function EmomWorkoutCreator() {
               <label className="block text-sm text-gray-600 mb-2">Rounds per Movement</label>
               <input
                 type="number"
-                min="1"
+                min=""
                 value={workout.roundsPerMovement}
                 onChange={(e) => updateRoundsPerMovement(e.target.value)}
                 onBlur={() => {
                   if (!workout.roundsPerMovement) {
-                    setWorkout({ ...workout, roundsPerMovement: 1 })
+                    setWorkout({ ...workout, roundsPerMovement: 1})
                   }
                 }}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
@@ -353,7 +353,7 @@ export default function EmomWorkoutCreator() {
                     value={exercise[exercise.metric] ?? ''}
                     onChange={(e) =>
                       updateExercise(exercise.id, {
-                        [exercise.metric]: parseInt(e.target.value)
+                        [exercise.metric]: parseInt(e.target.value) || 0
                       })
                     }
                     className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"

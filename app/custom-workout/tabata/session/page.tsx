@@ -21,8 +21,8 @@ interface Exercise {
 
 interface TabataWorkout {
   name: string;
-  rounds: number;
-  workInterval: number; // seconds for work interval
+  rounds: number; // number of rounds
+  workInterval: number; // seconds for work interval (may be unused if you use workTime/restTime)
   restInterval: number; // seconds for rest interval
   exercises: Exercise[];
   workTime: number; // seconds for work period
@@ -50,7 +50,16 @@ export default function TabataSession() {
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentTabataWorkout");
     if (savedWorkout) {
-      const parsedWorkout = JSON.parse(savedWorkout) as TabataWorkout;
+      let parsedWorkout = JSON.parse(savedWorkout) as TabataWorkout;
+      // Normalize each exercise so that it has a numeric value for each possible metric.
+      parsedWorkout.exercises = parsedWorkout.exercises.map((ex: Exercise) => {
+        return {
+          ...ex,
+          reps: ex.reps ?? 0,
+          distance: ex.distance ?? 0,
+          calories: ex.calories ?? 0,
+        };
+      });
       setWorkout(parsedWorkout);
       setTimeRemaining(parsedWorkout.workTime);
       setIsWorkInterval(true);
@@ -167,14 +176,11 @@ export default function TabataSession() {
       interval = setInterval(() => {
         setTimeRemaining((prevTime) => {
           const newTime = prevTime - 1;
-          // Play beep at 3 seconds remaining.
           if (newTime === 3) {
             console.log("3 seconds remaining - Playing beep");
             beep();
           }
-          // When current interval ends:
           if (newTime <= 0) {
-            // Calculate total rounds = rounds * number of exercises.
             const totalRounds = workout.rounds * workout.exercises.length;
             if (currentRound >= totalRounds) {
               handleComplete();
@@ -183,12 +189,10 @@ export default function TabataSession() {
             const nextRound = currentRound + 1;
             setCurrentRound(nextRound);
             if (isWorkInterval) {
-              // Transition from work to rest.
               speak("Rest");
               setTimeRemaining(workout.restTime);
               setIsWorkInterval(false);
             } else {
-              // Transition from rest to work: update exercise index and set work time.
               const nextIndex = (currentExerciseIndex + 1) % workout.exercises.length;
               setCurrentExerciseIndex(nextIndex);
               setTimeRemaining(workout.workTime);
@@ -204,7 +208,6 @@ export default function TabataSession() {
     return () => clearInterval(interval);
   }, [isRunning, isPaused, workout, currentRound, isWorkInterval, currentExerciseIndex]);
 
-  // Announce the first exercise on mount.
   useEffect(() => {
     if (workout && workout.exercises.length > 0) {
       speak(`${workout.exercises[0].name}, Round 1`);
@@ -237,7 +240,6 @@ export default function TabataSession() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <main className="max-w-2xl mx-auto px-4 py-8">
-        {/* Navigation */}
         <div className="flex items-center justify-between mb-8">
           <Link
             href="/custom-workout/tabata"
@@ -256,10 +258,8 @@ export default function TabataSession() {
           </button>
         </div>
 
-        {/* Workout Name */}
         <h1 className="text-3xl font-bold mb-4 text-center">{workout.name}</h1>
 
-        {/* Round and Exercise Display */}
         <div className="text-center mb-4">
           <span className="text-xl font-semibold text-gray-600">
             Round {displayRound}/{totalRounds}
@@ -269,14 +269,12 @@ export default function TabataSession() {
           </div>
         </div>
 
-        {/* Interval Type */}
         <div className="text-center mb-4">
           <span className={`text-xl font-bold ${isWorkInterval ? "text-green-500" : "text-red-500"}`}>
             {isWorkInterval ? "WORK" : "REST"}
           </span>
         </div>
 
-        {/* Timer Display */}
         <div className="text-center mb-8">
           <div className={`text-6xl font-mono font-bold mb-4 ${timeRemaining <= 3 ? "text-red-500" : ""}`}>
             {showCountdown ? (
@@ -321,7 +319,6 @@ export default function TabataSession() {
           </div>
         </div>
 
-        {/* Workout Details */}
         <div className="bg-white/50 rounded-lg border border-gray-200 p-6">
           <h2 className="text-xl font-semibold mb-4">
             {workout.rounds} Round{workout.rounds > 1 ? "s" : ""} of Tabata:
@@ -347,12 +344,10 @@ export default function TabataSession() {
           </div>
         </div>
 
-        {/* End-of-Workout Summary Modal */}
         {showSummary && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6">
-                {/* Render WorkoutSummary WITHOUT hideActions so default Save/Share/Exit buttons appear */}
                 <WorkoutSummary
                   isOpen={true}
                   onClose={() => setShowSummary(false)}
@@ -367,7 +362,7 @@ export default function TabataSession() {
                     targetMuscles: [],
                     workTime: workout.workTime,
                     restTime: workout.restTime,
-                    rounds: workout.rounds,
+                    rounds: workout.rounds
                   }}
                   duration={totalTime}
                   completedAt={completedAt || new Date()}

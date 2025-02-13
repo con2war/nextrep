@@ -19,7 +19,9 @@ import { formatDistanceToNow } from "date-fns";
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  return `${mins.toString().padStart(2, "0")}:${secs
+    .toString()
+    .padStart(2, "0")}`;
 };
 
 interface Exercise {
@@ -38,10 +40,31 @@ interface EmomWorkout {
   intervalTime: number;
   intervalUnit: "seconds" | "minutes";
   roundsPerMovement: number;
-  exercises: Exercise[];
+  exercises: Exercise[]; // could be saved as JSON string
   difficulty?: string;
   targetMuscles?: string[];
 }
+
+// Helper function: parse and normalize exercises data.
+const normalizeExercises = (exercisesInput: any): Exercise[] => {
+  let exercisesData: any[] = [];
+  if (typeof exercisesInput === "string") {
+    try {
+      exercisesData = JSON.parse(exercisesInput);
+    } catch (error) {
+      console.error("Error parsing exercises JSON:", error);
+    }
+  } else if (Array.isArray(exercisesInput)) {
+    exercisesData = exercisesInput;
+  }
+  return exercisesData.map((ex) => ({
+    ...ex,
+    reps: Number(ex.reps) || 0,
+    distance: Number(ex.distance) || 0,
+    calories: Number(ex.calories) || 0,
+    weight: Number(ex.weight) || 0,
+  }));
+};
 
 export default function EmomSession() {
   const router = useRouter();
@@ -57,7 +80,7 @@ export default function EmomSession() {
   const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
 
-  // Initialize beep sound once on mount.
+  // Initialize beep sound on mount.
   useEffect(() => {
     const audio = new Audio("/beep.mp3");
     audio.volume = 0.5;
@@ -80,16 +103,19 @@ export default function EmomSession() {
     }
   };
 
+  // Load and normalize the EMOM workout from localStorage.
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentEmomWorkout");
     if (savedWorkout) {
-      const parsed = JSON.parse(savedWorkout) as EmomWorkout;
-      // If the EMOM-specific fields are missing or null, assign default values.
+      let parsed = JSON.parse(savedWorkout) as EmomWorkout;
+      // Normalize the exercises field.
+      parsed.exercises = normalizeExercises(parsed.exercises);
+      // Set defaults if necessary.
       if (!parsed.intervalTime) {
-        parsed.intervalTime = 30; // default to 30 seconds, for example
+        parsed.intervalTime = 30; // default 30 seconds
       }
       if (!parsed.roundsPerMovement) {
-        parsed.roundsPerMovement = 1; // default to 1 round per movement
+        parsed.roundsPerMovement = 1; // default 1 round per movement
       }
       setWorkout(parsed);
       setTimeRemaining(parsed.intervalTime);
@@ -97,7 +123,6 @@ export default function EmomSession() {
       router.push("/custom-workout/emom");
     }
   }, [router]);
-  
 
   // Timer effect: decrease timeRemaining every second.
   useEffect(() => {
@@ -124,12 +149,11 @@ export default function EmomSession() {
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [isRunning, workout, currentRound, currentExercise]);
+  }, [isRunning, workout, currentRound, currentExercise, speak]);
 
   // Start/resume/pause the workout.
   const startOrToggleWorkout = () => {
     if (!isRunning && !isPaused) {
-      // First press: show countdown.
       setShowCountdown(true);
     } else if (isPaused) {
       setIsRunning(true);
@@ -140,7 +164,7 @@ export default function EmomSession() {
     }
   };
 
-  // Callback when the countdown completes.
+  // Callback when countdown completes.
   const handleCountdownComplete = () => {
     setShowCountdown(false);
     setIsRunning(true);
@@ -148,7 +172,7 @@ export default function EmomSession() {
     speak("Let's Go");
   };
 
-  // End workout: stop timer, cancel vocals, record completion, and show the summary modal.
+  // End workout: stop timer, cancel speech, record completion, show summary modal.
   const handleComplete = () => {
     setIsRunning(false);
     setIsPaused(true);
@@ -158,13 +182,12 @@ export default function EmomSession() {
     setShowSummary(true);
   };
 
-  // Toggle audio on/off.
+  // Toggle audio.
   const toggleAudio = () => {
     setIsAudioEnabled(!isAudioEnabled);
   };
 
-  // When the user clicks the "Start Workout" button in the summary modal,
-  // save the workout details and restart the session.
+  // When the user clicks "Start Workout" in the summary modal, save and restart session.
   const handleStartWorkout = () => {
     if (!workout) return;
     localStorage.setItem("selectedWorkout", JSON.stringify(workout));
@@ -197,15 +220,13 @@ export default function EmomSession() {
 
         {/* Workout Name */}
         <div className="flex items-center justify-center mb-8">
-          <h1 className="text-3xl font-bold">{workout.name}</h1>
+          <h1 className="text-3xl font-bold">{workout.name || "EMOM Workout"}</h1>
         </div>
 
         {/* Timer & Round Info */}
         <div className="text-center mb-8">
           <div
-            className={`text-6xl font-mono font-bold mb-4 ${
-              timeRemaining <= 3 ? "text-red-500" : ""
-            }`}
+            className={`text-6xl font-mono font-bold mb-4 ${timeRemaining <= 3 ? "text-red-500" : ""}`}
           >
             {showCountdown ? (
               <WorkoutCountdown
@@ -241,9 +262,7 @@ export default function EmomSession() {
             </button>
             <button
               onClick={toggleAudio}
-              className={`p-2 rounded-lg ${
-                isAudioEnabled ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"
-              } text-white transition-colors`}
+              className={`p-2 rounded-lg ${isAudioEnabled ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"} text-white transition-colors`}
               title={isAudioEnabled ? "Disable Audio" : "Enable Audio"}
             >
               {isAudioEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
@@ -252,7 +271,7 @@ export default function EmomSession() {
         </div>
 
         {/* Workout Details */}
-        <div className="bg-white/50 rounded-lg border border-gray-200 p-6">
+        <div className="bg-white/50 rounded-lg border border-gray-200 p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">
             Every {workout.intervalTime} seconds for {workout.roundsPerMovement} set
             {workout.roundsPerMovement > 1 ? "s" : ""}:
@@ -262,23 +281,30 @@ export default function EmomSession() {
               <div key={exercise.id}>
                 <p className="font-medium">{exercise.name}</p>
                 <p className="text-sm text-gray-500">
-                  {exercise.metric === "reps" && exercise.reps ? `${exercise.reps} reps` : ""}
-                  {exercise.metric === "distance" && exercise.distance ? `${exercise.distance}m` : ""}
-                  {exercise.metric === "calories" && exercise.calories ? `${exercise.calories} cals` : ""}
-                  {exercise.weight ? ` (${exercise.weight}kg)` : ""}
+                  {exercise.metric === "reps" && exercise.reps !== undefined
+                    ? `${exercise.reps} reps`
+                    : exercise.metric === "distance" && exercise.distance !== undefined
+                    ? `${exercise.distance} m`
+                    : exercise.metric === "calories" && exercise.calories !== undefined
+                    ? `${exercise.calories} cals`
+                    : ""}
+                  {exercise.weight !== undefined && exercise.weight !== 0
+                    ? ` (Weight: ${exercise.weight} kg)`
+                    : ""}
                 </p>
-                {exercise.notes && <p className="text-sm text-gray-400">{exercise.notes}</p>}
+                {exercise.notes && (
+                  <p className="text-sm text-gray-400">{exercise.notes}</p>
+                )}
               </div>
             ))}
           </div>
         </div>
 
-        {/* End-of-Workout Summary Modal */}
+        {/* Workout Summary Modal */}
         {showSummary && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6">
-                {/* Render WorkoutSummary WITHOUT hideActions so default Save/Share/Exit buttons appear */}
                 <WorkoutSummary
                   isOpen={true}
                   onClose={() => setShowSummary(false)}
@@ -304,5 +330,3 @@ export default function EmomSession() {
     </div>
   );
 }
-
-

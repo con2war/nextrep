@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { Play, Pause, XCircle, ChevronLeft, Volume2, VolumeX } from "lucide-react";
@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import WorkoutSummary from "@/app/components/WorkoutSummary";
 import WorkoutCountdown from "@/app/components/WorkoutCountdown";
+import { formatDistanceToNow } from "date-fns";
 
 interface Exercise {
   id: string;
@@ -41,7 +42,7 @@ export default function AmrapSession() {
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
 
-  // Initialize beep sound on mount
+  // Initialize beep sound on mount.
   useEffect(() => {
     const audio = new Audio("/beep.mp3");
     audio.volume = 0.5;
@@ -64,7 +65,7 @@ export default function AmrapSession() {
     };
   }, []);
 
-  // Initialize audio on first user interaction
+  // Initialize audio on first user interaction.
   const initializeAudio = () => {
     if (!audioInitialized && beepSound) {
       console.log("Attempting to initialize audio...");
@@ -146,16 +147,24 @@ export default function AmrapSession() {
     }
   };
 
-  // Scroll to top on mount
+  // Scroll to top on mount.
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  // Load workout data on mount
+  // Load workout data on mount and normalize exercise metrics (including weight).
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentAmrapWorkout");
     if (savedWorkout) {
-      const parsedWorkout: AmrapWorkout = JSON.parse(savedWorkout);
+      let parsedWorkout: AmrapWorkout = JSON.parse(savedWorkout);
+      // Normalize each exercise so that the metric values (including weight) are numbers.
+      parsedWorkout.exercises = parsedWorkout.exercises.map((ex: Exercise) => ({
+        ...ex,
+        reps: ex.reps ?? 0,
+        distance: ex.distance ?? 0,
+        calories: ex.calories ?? 0,
+        weight: ex.weight ?? 0,
+      }));
       setWorkout(parsedWorkout);
       setTimeRemaining(parsedWorkout.timer);
       setTotalTime(parsedWorkout.timeCap * 60);
@@ -164,7 +173,7 @@ export default function AmrapSession() {
     }
   }, [router]);
 
-  // Timer logic (countdown from timeCap in seconds)
+  // Timer logic (countdown from timeCap in seconds).
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRunning && !isPaused && workout) {
@@ -177,7 +186,7 @@ export default function AmrapSession() {
             console.log("At 3 seconds mark - Playing beep");
             beep();
           }
-          // Announce halfway (workout.timeCap * 60 is total seconds)
+          // Announce halfway (workout.timeCap * 60 is total seconds).
           if (newTime === Math.floor((workout.timeCap * 60) / 2)) {
             speak("Half way");
           }
@@ -227,7 +236,7 @@ export default function AmrapSession() {
     setShowSummary(true);
   };
 
-  // Handler for sharing the workout summary
+  // Handler for sharing the workout summary.
   const handleShare = async () => {
     try {
       const shareData = {
@@ -375,7 +384,7 @@ export default function AmrapSession() {
           workout={{
             name: workout.name,
             type: "AMRAP",
-            // For AMRAP, pass the exercises array as-is (or JSON-stringify it if needed)
+            // Pass the exercises array as-is.
             exercises: Array.isArray(workout.exercises)
               ? workout.exercises
               : JSON.stringify(workout.exercises),
@@ -388,4 +397,3 @@ export default function AmrapSession() {
     </div>
   );
 }
-

@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { useUser } from '@auth0/nextjs-auth0/client'
-import { useState, useEffect } from 'react'
+import { useUser } from "@auth0/nextjs-auth0/client";
+import { useState, useEffect } from "react";
 import {
   Loader2,
   Calendar,
@@ -10,156 +10,180 @@ import {
   Star,
   Heart,
   Play,
-  X
-} from 'lucide-react'
-import Image from 'next/image'
-import { useRouter } from 'next/navigation'
-import { formatDistanceToNow } from 'date-fns'
+  X,
+} from "lucide-react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { formatDistanceToNow } from "date-fns";
 
-//
 // Helper function to format a duration (in seconds) as mm:ss.
-//
 const formatDuration = (seconds: number) => {
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+};
+
+// Helper to normalize numeric fields in non-DAILY workouts’ exercises.
+const normalizeExercises = (exercisesInput: any): any[] => {
+  let exercisesArray: any[] = [];
+  if (typeof exercisesInput === "string") {
+    try {
+      exercisesArray = JSON.parse(exercisesInput);
+    } catch (error) {
+      console.error("Error parsing exercises JSON:", error);
+    }
+  } else if (Array.isArray(exercisesInput)) {
+    exercisesArray = exercisesInput;
+  }
+  return exercisesArray.map((ex: any) => ({
+    ...ex,
+    reps: Number(ex.reps) || 0,
+    distance: Number(ex.distance) || 0,
+    calories: Number(ex.calories) || 0,
+    weight: Number(ex.weight) || 0,
+  }));
+};
+
+// Helper to normalize DAILY workout sections.
+const normalizeDailyExercises = (exercises: any[]): any[] => {
+  return exercises.map((ex: any) => ({
+    ...ex,
+    reps: Number(ex.reps) || 0,
+    distance: Number(ex.distance) || 0,
+    calories: Number(ex.calories) || 0,
+    weight: Number(ex.weight) || 0,
+  }));
+};
 
 //
-// Interface for a saved workout, including unique fields for EMOM, TABATA, etc.
+// Interface for a saved workout, including unique fields for different workout types.
 //
 interface SavedWorkout {
-  id: string
-  type: 'AMRAP' | 'EMOM' | 'TABATA' | 'FOR TIME' | 'DAILY'
-  name?: string
-  duration: string
-  difficulty: string
-  targetMuscles: string[]
-  createdAt: string
-  exercises: any // could be a JSON string or an array
+  id: string;
+  type: "AMRAP" | "EMOM" | "TABATA" | "FOR TIME" | "DAILY";
+  name?: string;
+  duration: string;
+  difficulty: string;
+  targetMuscles: string[];
+  createdAt: string;
+  exercises: any; // could be a JSON string or an array
   // For DAILY workouts (structured exercises)
-  warmup?: any[]
-  mainWorkout?: any[]
-  cooldown?: any[]
+  warmup?: any[];
+  mainWorkout?: any[];
+  cooldown?: any[];
   // Unique fields for EMOM (and similar)
-  intervalTime?: number
-  roundsPerMovement?: number
+  intervalTime?: number;
+  roundsPerMovement?: number;
   // Unique fields for TABATA:
-  workTime?: number
-  restTime?: number
-  rounds?: number
-  // (Add additional unique fields as needed.)
-  timeCap?: number
+  workTime?: number;
+  restTime?: number;
+  rounds?: number;
+  // Unique field for AMRAP:
+  timeCap?: number;
 }
 
 interface UserStats {
-  totalWorkouts: number
-  currentStreak: number
-  totalMinutes: number
-  averageRating: string
-  favoriteWorkouts: number
+  totalWorkouts: number;
+  currentStreak: number;
+  totalMinutes: number;
+  averageRating: string;
+  favoriteWorkouts: number;
   recentWorkouts: {
-    date: string
-    name: string
-    duration: string
-    difficulty: string
-    targetMuscles: string[]
-  }[]
+    date: string;
+    name: string;
+    duration: string;
+    difficulty: string;
+    targetMuscles: string[];
+  }[];
 }
 
 export default function Profile() {
-  const { user, error, isLoading } = useUser()
-  const router = useRouter()
-  const [activeTab, setActiveTab] = useState<'overview' | 'favorites'>('overview')
-  const [savedWorkouts, setSavedWorkouts] = useState<SavedWorkout[]>([])
-  const [selectedWorkout, setSelectedWorkout] = useState<SavedWorkout | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [userStats, setUserStats] = useState<UserStats | null>(null)
+  const { user, error, isLoading } = useUser();
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"overview" | "favorites">("overview");
+  const [savedWorkouts, setSavedWorkouts] = useState<SavedWorkout[]>([]);
+  const [selectedWorkout, setSelectedWorkout] = useState<SavedWorkout | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
 
   // Fetch saved workouts and user stats when the user is logged in.
   useEffect(() => {
     const fetchSavedWorkouts = async () => {
       try {
-        const response = await fetch('/api/workouts/favorites')
-        if (!response.ok) throw new Error('Failed to fetch favorites')
-        const data = await response.json()
-        setSavedWorkouts(data)
+        const response = await fetch("/api/workouts/favorites");
+        if (!response.ok) throw new Error("Failed to fetch favorites");
+        const data = await response.json();
+        setSavedWorkouts(data);
       } catch (error) {
-        console.error('Error fetching favorites:', error)
+        console.error("Error fetching favorites:", error);
       }
-    }
+    };
 
     const fetchUserStats = async () => {
       try {
-        const response = await fetch('/api/user/stats')
+        const response = await fetch("/api/user/stats");
         if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.details || 'Failed to fetch stats')
+          const errorData = await response.json();
+          throw new Error(errorData.details || "Failed to fetch stats");
         }
-        const data = await response.json()
-        setUserStats(data)
+        const data = await response.json();
+        setUserStats(data);
       } catch (error) {
-        console.error('Error fetching user stats:', error)
+        console.error("Error fetching user stats:", error);
       }
-    }
+    };
 
     if (user) {
-      fetchSavedWorkouts()
-      fetchUserStats()
+      fetchSavedWorkouts();
+      fetchUserStats();
     }
-  }, [user])
+  }, [user]);
 
-  // In your Profile page component
-
+  // Handler when a saved workout is clicked.
   const handleWorkoutClick = (workout: any) => {
     if (!workout) {
       console.error("Invalid favorite workout data:", workout);
       return;
     }
+    console.log("Selected workout data:", workout);
 
-    console.log("Selected workout data:", workout); // Log the workout data
-
-    if (workout.type === 'DAILY') {
-      // For DAILY workouts, ensure we have the proper structure.
-      // If the workout does not already have the warmup, mainWorkout, cooldown arrays,
-      // try to parse the exercises field.
+    if (workout.type === "DAILY") {
+      // For DAILY workouts, parse exercises if needed and normalize each section.
       let parsedExercises = workout.exercises;
-      if (typeof parsedExercises === 'string') {
+      if (typeof parsedExercises === "string") {
         try {
           parsedExercises = JSON.parse(parsedExercises);
         } catch (error) {
-          console.error('Error parsing exercises:', error);
+          console.error("Error parsing exercises:", error);
           parsedExercises = {};
         }
       }
       const structuredWorkout = {
         ...workout,
-        warmup: workout.warmup || parsedExercises.warmup || [],
-        mainWorkout: workout.mainWorkout || parsedExercises.mainWorkout || [],
-        cooldown: workout.cooldown || parsedExercises.cooldown || [],
+        warmup: workout.warmup ? normalizeDailyExercises(workout.warmup) : [],
+        mainWorkout: workout.mainWorkout ? normalizeDailyExercises(workout.mainWorkout) : [],
+        cooldown: workout.cooldown ? normalizeDailyExercises(workout.cooldown) : [],
         exercises: parsedExercises,
       };
       console.log("Structured DAILY workout:", structuredWorkout);
       setSelectedWorkout(structuredWorkout);
     } else {
-      // For non-DAILY workouts, parse the exercises field if necessary
+      // For non-DAILY workouts, parse and normalize the exercises.
+      const normalized = normalizeExercises(workout.exercises);
       const structuredWorkout = {
         ...workout,
-        exercises:
-          typeof workout.exercises === 'string'
-            ? JSON.parse(workout.exercises)
-            : workout.exercises,
-        ...(workout.type === 'TABATA' && {
+        exercises: normalized,
+        ...(workout.type === "TABATA" && {
           workTime: Number(workout.workTime || 0),
           restTime: Number(workout.restTime || 0),
           rounds: Number(workout.rounds || 0),
-          ...(workout.type === 'EMOM' && {
-            roundsPerMovement: Number(workout.roundsPerMovement || 0),
-            intervalTime: Number(workout.intervalTime || 0),
-          }),
-          ...(workout.type === 'AMRAP' && {
-            timeCap: Number(workout.timeCap || 0),
-          }),
+        }),
+        ...(workout.type === "EMOM" && {
+          roundsPerMovement: Number(workout.roundsPerMovement || 0),
+          intervalTime: Number(workout.intervalTime || 0),
+        }),
+        ...(workout.type === "AMRAP" && {
+          timeCap: Number(workout.timeCap || 0),
         }),
       };
       console.log("Structured workout:", structuredWorkout);
@@ -167,8 +191,6 @@ export default function Profile() {
     }
     setIsModalOpen(true);
   };
-
-
 
   // Format and save the workout data, then navigate to the proper session page.
   const handleStartWorkout = (workout: SavedWorkout) => {
@@ -184,84 +206,72 @@ export default function Profile() {
         warmup: workout.warmup,
         mainWorkout: workout.mainWorkout,
         cooldown: workout.cooldown,
-        // Include unique fields with fallback defaults.
         intervalTime: workout.intervalTime ?? 0,
         roundsPerMovement: workout.roundsPerMovement ?? 0,
         workTime: workout.workTime ?? 0,
         restTime: workout.restTime ?? 0,
         rounds: workout.rounds ?? 0,
-      }
+      };
       if (workout.type === "DAILY") {
-        // When the workout is DAILY, ensure the combined exercises object is set.
         formattedWorkout.exercises = {
           warmup: workout.warmup || [],
           mainWorkout: workout.mainWorkout || [],
           cooldown: workout.cooldown || [],
         };
       }
-
       localStorage.setItem("selectedWorkout", JSON.stringify(formattedWorkout));
 
-      // If it's an EMOM workout, navigate to the EMOM session page.
-      if (workout.type === 'EMOM') {
-        router.push('custom-workout/emom/session')
-      }
-      else if (workout.type === 'AMRAP') {
-        router.push('custom-workout/amrap/session')
-      }
-      else if (workout.type === 'TABATA') {
-        router.push('custom-workout/tabata/session')
-      }
-      else if (workout.type === 'FOR TIME') {
-        router.push('custom-workout/for-time/session')
-      }
-      else {
-        // For all other workout types, navigate to the standard workout session page.
-        router.push('/daily-workout')
+      if (workout.type === "EMOM") {
+        router.push("custom-workout/emom/session");
+      } else if (workout.type === "AMRAP") {
+        router.push("custom-workout/amrap/session");
+      } else if (workout.type === "TABATA") {
+        router.push("custom-workout/tabata/session");
+      } else if (workout.type === "FOR TIME") {
+        router.push("custom-workout/for-time/session");
+      } else {
+        router.push("/daily-workout");
       }
     } catch (error) {
-      console.error('Error starting workout:', error)
-      alert('Error loading workout. Please try again.')
+      console.error("Error starting workout:", error);
+      alert("Error loading workout. Please try again.");
     }
-  }
+  };
 
   const handleDeleteWorkout = async (workoutId: string) => {
     try {
       const response = await fetch(`/api/workouts/favorites/${workoutId}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
-
       if (!response.ok) {
-        throw new Error('Failed to delete workout');
+        throw new Error("Failed to delete workout");
       }
-
-      // Update the local state to remove the deleted workout
-      setSavedWorkouts(savedWorkouts.filter(workout => workout.id !== workoutId));
+      setSavedWorkouts(savedWorkouts.filter((w) => w.id !== workoutId));
     } catch (error) {
-      console.error('Error deleting workout:', error);
-      alert('Failed to delete workout. Please try again.');
+      console.error("Error deleting workout:", error);
+      alert("Failed to delete workout. Please try again.");
     }
   };
 
   const handleDeleteAllWorkouts = async () => {
     try {
-      if (!confirm('Are you sure you want to delete ALL favorited workouts? This cannot be undone.')) {
+      if (
+        !confirm(
+          "Are you sure you want to delete ALL favorited workouts? This cannot be undone."
+        )
+      ) {
         return;
       }
-
-      const response = await fetch('/api/workouts/favorites/delete-all', {
-        method: 'DELETE',
+      const response = await fetch("/api/workouts/favorites/delete-all", {
+        method: "DELETE",
       });
-
       if (!response.ok) {
-        throw new Error('Failed to delete all workouts');
+        throw new Error("Failed to delete all workouts");
       }
-
-      // Clear the local state
       setSavedWorkouts([]);
     } catch (error) {
-      console.error('Error deleting all workouts:', error);
-      alert('Failed to delete all workouts. Please try again.');
+      console.error("Error deleting all workouts:", error);
+      alert("Failed to delete all workouts. Please try again.");
     }
   };
 
@@ -270,7 +280,7 @@ export default function Profile() {
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin" />
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -280,7 +290,7 @@ export default function Profile() {
           {error.message}
         </div>
       </div>
-    )
+    );
   }
 
   if (!user) {
@@ -296,12 +306,13 @@ export default function Profile() {
             </p>
           </div>
           <div className="grid gap-8 md:grid-cols-2 mb-12">
-            {/* Example marketing card */}
             <div className="p-6 bg-white rounded-xl border border-blue-100 shadow-sm">
               <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
                 <Heart className="w-6 h-6 text-blue-500" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Save Favorites</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Save Favorites
+              </h3>
               <p className="text-gray-600">
                 Keep track of your preferred workouts and access them anytime
               </p>
@@ -317,7 +328,7 @@ export default function Profile() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -335,7 +346,9 @@ export default function Profile() {
             />
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-              {user?.email && <p className="text-sm text-gray-600 mt-1">{user.email}</p>}
+              {user?.email && (
+                <p className="text-sm text-gray-600 mt-1">{user.email}</p>
+              )}
             </div>
           </div>
         </div>
@@ -346,20 +359,28 @@ export default function Profile() {
         <div className="max-w-2xl mx-auto px-4">
           <div className="flex gap-8">
             <button
-              onClick={() => setActiveTab('overview')}
-              className={`py-4 px-1 relative ${activeTab === 'overview' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}`}
+              onClick={() => setActiveTab("overview")}
+              className={`py-4 px-1 relative ${
+                activeTab === "overview"
+                  ? "text-blue-600"
+                  : "text-gray-600 hover:text-blue-600"
+              }`}
             >
               Overview
-              {activeTab === 'overview' && (
+              {activeTab === "overview" && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
               )}
             </button>
             <button
-              onClick={() => setActiveTab('favorites')}
-              className={`py-4 px-1 relative ${activeTab === 'favorites' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}`}
+              onClick={() => setActiveTab("favorites")}
+              className={`py-4 px-1 relative ${
+                activeTab === "favorites"
+                  ? "text-blue-600"
+                  : "text-gray-600 hover:text-blue-600"
+              }`}
             >
               Favorites
-              {activeTab === 'favorites' && (
+              {activeTab === "favorites" && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
               )}
             </button>
@@ -369,31 +390,41 @@ export default function Profile() {
 
       {/* Main Content */}
       <div className="max-w-2xl mx-auto px-4 py-8">
-        {activeTab === 'overview' ? (
+        {activeTab === "overview" ? (
           <>
             {/* Stats Overview */}
             <div className="grid grid-cols-2 gap-4 mb-8">
               <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                <p className="text-2xl font-bold text-blue-500">{userStats?.totalWorkouts || 0}</p>
+                <p className="text-2xl font-bold text-blue-500">
+                  {userStats?.totalWorkouts || 0}
+                </p>
                 <p className="text-sm text-gray-600">Workouts</p>
               </div>
               <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                <p className="text-2xl font-bold text-blue-500">{userStats?.currentStreak || 0}</p>
+                <p className="text-2xl font-bold text-blue-500">
+                  {userStats?.currentStreak || 0}
+                </p>
                 <p className="text-sm text-gray-600">Day Streak</p>
               </div>
               <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                <p className="text-2xl font-bold text-blue-500">{userStats?.totalMinutes || 0}</p>
+                <p className="text-2xl font-bold text-blue-500">
+                  {userStats?.totalMinutes || 0}
+                </p>
                 <p className="text-sm text-gray-600">Total Minutes</p>
               </div>
               <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                <p className="text-2xl font-bold text-blue-500">{userStats?.averageRating || '0.0'}</p>
+                <p className="text-2xl font-bold text-blue-500">
+                  {userStats?.averageRating || "0.0"}
+                </p>
                 <p className="text-sm text-gray-600">Avg. Rating</p>
               </div>
             </div>
 
             {/* Recent Favorites */}
             <div className="mb-8">
-              <h3 className="text-lg font-medium text-gray-700 mb-4">Recently Favorited</h3>
+              <h3 className="text-lg font-medium text-gray-700 mb-4">
+                Recently Favorited
+              </h3>
               <div className="space-y-3">
                 {userStats?.recentWorkouts && userStats.recentWorkouts.length > 0 ? (
                   userStats.recentWorkouts.map((workout, index) => (
@@ -410,7 +441,10 @@ export default function Profile() {
                       </div>
                       <div className="flex flex-wrap gap-2 mt-2">
                         {workout.targetMuscles.map((muscle, i) => (
-                          <span key={i} className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-600">
+                          <span
+                            key={i}
+                            className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-600"
+                          >
                             {muscle}
                           </span>
                         ))}
@@ -418,7 +452,9 @@ export default function Profile() {
                     </div>
                   ))
                 ) : (
-                  <p className="text-center text-gray-500 py-4">No favorited workouts yet</p>
+                  <p className="text-center text-gray-500 py-4">
+                    No favorited workouts yet
+                  </p>
                 )}
               </div>
             </div>
@@ -426,46 +462,40 @@ export default function Profile() {
         ) : (
           <div className="space-y-4">
             {savedWorkouts.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">No saved workouts yet</div>
+              <div className="text-center py-8 text-gray-400">
+                No saved workouts yet
+              </div>
             ) : (
               savedWorkouts.map((workout) => (
                 <div
                   key={workout.id}
                   className="relative w-full p-4 rounded-lg border border-gray-200 bg-white shadow-sm hover:border-blue-200 transition-colors group"
                 >
-                  {/* Main content div (clickable) */}
-                  <div
-                    onClick={() => handleWorkoutClick(workout)}
-                    className="cursor-pointer"
-                  >
+                  <div onClick={() => handleWorkoutClick(workout)} className="cursor-pointer">
                     <div className="flex justify-between items-center mb-2">
                       <div className="flex items-center gap-2">
                         <Dumbbell className="w-5 h-5 text-blue-500" />
-                        <span className="font-medium">
-                          {workout.name || workout.type}
-                        </span>
+                        <span className="font-medium">{workout.name || workout.type}</span>
                       </div>
                       <span className="text-sm text-gray-500">
-                        {formatDistanceToNow(new Date(workout.createdAt), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(workout.createdAt), {
+                          addSuffix: true,
+                        })}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {workout.targetMuscles && workout.targetMuscles.map((muscle, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-sm"
-                        >
-                          {muscle}
-                        </span>
-                      ))}
+                      {workout.targetMuscles &&
+                        workout.targetMuscles.map((muscle, idx) => (
+                          <span key={idx} className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-sm">
+                            {muscle}
+                          </span>
+                        ))}
                     </div>
                   </div>
-
-                  {/* Delete button (separate from clickable area) */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm('Are you sure you want to delete this workout?')) {
+                      if (confirm("Are you sure you want to delete this workout?")) {
                         handleDeleteWorkout(workout.id);
                       }
                     }}
@@ -480,11 +510,10 @@ export default function Profile() {
         )}
       </div>
 
-      {/* Custom Modal: Display complete workout details with unique fields and a Start Workout button */}
+      {/* Modal for Detailed Workout Info */}
       {isModalOpen && selectedWorkout && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto relative">
-            {/* Close button */}
             <button
               onClick={() => setIsModalOpen(false)}
               className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
@@ -493,12 +522,10 @@ export default function Profile() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-
             <div className="p-6">
               <div className="mb-4">
                 <h2 className="text-xl font-bold text-center">Workout Details</h2>
               </div>
-
               <div className="space-y-4">
                 <div>
                   <h3 className="font-medium text-gray-900">
@@ -506,11 +533,12 @@ export default function Profile() {
                   </h3>
                   <p className="text-sm text-gray-500">{selectedWorkout.type} Workout</p>
                   {selectedWorkout.difficulty && (
-                    <p className="text-sm text-gray-500">Difficulty: {selectedWorkout.difficulty}</p>
+                    <p className="text-sm text-gray-500">
+                      Difficulty: {selectedWorkout.difficulty}
+                    </p>
                   )}
                 </div>
-
-                {selectedWorkout.type === "DAILY" && (
+                {selectedWorkout.type === "DAILY" ? (
                   <>
                     {selectedWorkout.warmup && selectedWorkout.warmup.length > 0 && (
                       <div>
@@ -519,14 +547,28 @@ export default function Profile() {
                           {selectedWorkout.warmup.map((exercise, index) => (
                             <li key={index} className="text-sm bg-gray-50 p-2 rounded">
                               <span className="font-medium">{exercise.exercise}</span>
-                              {exercise.sets && <span className="text-gray-500"> • {exercise.sets} sets</span>}
-                              {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
+                              {exercise.sets && (
+                                <span className="text-gray-500"> • {exercise.sets} sets</span>
+                              )}
+                              {exercise.duration && (
+                                <span className="text-gray-500"> • {exercise.duration}</span>
+                              )}
+                              {exercise.reps !== undefined && (
+                                <span className="text-gray-500"> • {exercise.reps} reps</span>
+                              )}
+                              {exercise.weight ? (
+                                <span className="text-gray-500"> • Weight: {exercise.weight} kg</span>
+                              ) : null}
+                              {exercise.notes && (
+                                <p className="text-xs text-gray-500 mt-1 italic">
+                                  {exercise.notes}
+                                </p>
+                              )}
                             </li>
                           ))}
                         </ul>
                       </div>
                     )}
-
                     {selectedWorkout.mainWorkout && selectedWorkout.mainWorkout.length > 0 && (
                       <div>
                         <h3 className="font-medium text-gray-900 mb-2">Main Workout</h3>
@@ -534,17 +576,31 @@ export default function Profile() {
                           {selectedWorkout.mainWorkout.map((exercise, index) => (
                             <li key={index} className="text-sm bg-gray-50 p-2 rounded">
                               <span className="font-medium">{exercise.exercise}</span>
-                              {exercise.sets && <span className="text-gray-500"> • {exercise.sets} sets</span>}
-                              {exercise.reps && <span className="text-gray-500"> • {exercise.reps} reps</span>}
-                              {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
-                              {exercise.rest && <span className="text-gray-500"> • Rest: {exercise.rest}</span>}
-                              {exercise.notes && <p className="text-xs text-gray-500 mt-1 italic">{exercise.notes}</p>}
+                              {exercise.sets && (
+                                <span className="text-gray-500"> • {exercise.sets} sets</span>
+                              )}
+                              {exercise.reps !== undefined && (
+                                <span className="text-gray-500"> • {exercise.reps} reps</span>
+                              )}
+                              {exercise.duration && (
+                                <span className="text-gray-500"> • {exercise.duration}</span>
+                              )}
+                              {exercise.rest && (
+                                <span className="text-gray-500"> • Rest: {exercise.rest}</span>
+                              )}
+                              {exercise.weight ? (
+                                <span className="text-gray-500"> • Weight: {exercise.weight} kg</span>
+                              ) : null}
+                              {exercise.notes && (
+                                <p className="text-xs text-gray-500 mt-1 italic">
+                                  {exercise.notes}
+                                </p>
+                              )}
                             </li>
                           ))}
                         </ul>
                       </div>
                     )}
-
                     {selectedWorkout.cooldown && selectedWorkout.cooldown.length > 0 && (
                       <div>
                         <h3 className="font-medium text-gray-900 mb-2">Cool Down</h3>
@@ -552,50 +608,91 @@ export default function Profile() {
                           {selectedWorkout.cooldown.map((exercise, index) => (
                             <li key={index} className="text-sm bg-gray-50 p-2 rounded">
                               <span className="font-medium">{exercise.exercise}</span>
-                              {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
+                              {exercise.duration && (
+                                <span className="text-gray-500"> • {exercise.duration}</span>
+                              )}
+                              {exercise.reps !== undefined && (
+                                <span className="text-gray-500"> • {exercise.reps} reps</span>
+                              )}
+                              {exercise.weight ? (
+                                <span className="text-gray-500"> • Weight: {exercise.weight} kg</span>
+                              ) : null}
+                              {exercise.notes && (
+                                <p className="text-xs text-gray-500 mt-1 italic">
+                                  {exercise.notes}
+                                </p>
+                              )}
                             </li>
                           ))}
                         </ul>
                       </div>
                     )}
                   </>
-                )}
-
-                {selectedWorkout.type !== "DAILY" && (
+                ) : (
                   <div>
                     <h3 className="font-medium mb-2">Exercises</h3>
                     {(() => {
-                      let exercisesData: any[] = []
-                      if (typeof selectedWorkout.exercises === "string") {
-                        try {
-                          exercisesData = JSON.parse(selectedWorkout.exercises)
-                        } catch (error) {
-                          console.error("Error parsing exercises:", error)
-                        }
-                      } else if (Array.isArray(selectedWorkout.exercises)) {
-                        exercisesData = selectedWorkout.exercises
-                      }
+                      const exercisesData = normalizeExercises(selectedWorkout.exercises);
                       return exercisesData.length > 0 ? (
                         <ul className="space-y-2">
                           {exercisesData.map((exercise, index) => (
                             <li key={index} className="text-sm bg-gray-50 p-2 rounded">
-                              <span className="font-medium">{exercise.name || exercise.exercise}</span>
-                              {exercise.sets && <span className="text-gray-500"> • {exercise.sets} sets</span>}
-                              {exercise.reps && <span className="text-gray-500"> • {exercise.reps} reps</span>}
-                              {exercise.duration && <span className="text-gray-500"> • {exercise.duration}</span>}
-                              {exercise.rest && <span className="text-gray-500"> • Rest: {exercise.rest}</span>}
-                              {exercise.notes && <p className="text-xs text-gray-500 mt-1 italic">{exercise.notes}</p>}
+                              <span className="font-medium">
+                                {exercise.name || exercise.exercise}
+                              </span>
+                              {exercise.metric && (
+                                <span className="text-gray-500">
+                                  {" "}
+                                  •{" "}
+                                  {exercise.metric === "reps" && exercise.reps !== undefined
+                                    ? `${exercise.reps} reps`
+                                    : exercise.metric === "distance" && exercise.distance !== undefined
+                                    ? `${exercise.distance} m`
+                                    : exercise.metric === "calories" && exercise.calories !== undefined
+                                    ? `${exercise.calories} cals`
+                                    : ""}
+                                </span>
+                              )}
+                              {exercise.weight !== undefined && exercise.weight !== 0 ? (
+                                <span className="text-gray-500">
+                                  {" "}
+                                  • Weight: {exercise.weight} kg
+                                </span>
+                              ) : null}
+                              {exercise.sets !== undefined && (
+                                <span className="text-gray-500">
+                                  {" "}
+                                  • {exercise.sets} sets
+                                </span>
+                              )}
+                              {exercise.duration && (
+                                <span className="text-gray-500">
+                                  {" "}
+                                  • {exercise.duration}
+                                </span>
+                              )}
+                              {exercise.rest && (
+                                <span className="text-gray-500">
+                                  {" "}
+                                  • Rest: {exercise.rest}
+                                </span>
+                              )}
+                              {exercise.notes && (
+                                <p className="text-xs text-gray-500 mt-1 italic">
+                                  {exercise.notes}
+                                </p>
+                              )}
                             </li>
                           ))}
                         </ul>
                       ) : (
                         <p className="text-gray-400">No exercise details available</p>
-                      )
+                      );
                     })()}
                   </div>
                 )}
 
-                {selectedWorkout.type === 'TABATA' && (
+                {selectedWorkout.type === "TABATA" && (
                   <div className="mt-4">
                     <h3 className="font-medium text-gray-900 mb-2">Tabata Details</h3>
                     <div className="grid grid-cols-3 gap-4">
@@ -615,7 +712,7 @@ export default function Profile() {
                   </div>
                 )}
 
-                {selectedWorkout.type === 'EMOM' && (
+                {selectedWorkout.type === "EMOM" && (
                   <div>
                     <h3 className="font-medium text-gray-900 mb-2">EMOM Details</h3>
                     <div className="grid grid-cols-3 gap-4">
@@ -631,7 +728,7 @@ export default function Profile() {
                   </div>
                 )}
 
-                {selectedWorkout.type === 'AMRAP' && (
+                {selectedWorkout.type === "AMRAP" && (
                   <div>
                     <h3 className="font-medium text-gray-900 mb-2">AMRAP Details</h3>
                     <div className="grid grid-cols-3 gap-4">
@@ -646,12 +743,16 @@ export default function Profile() {
                 <div className="grid grid-cols-2 gap-4 py-4 border-y border-gray-100">
                   <div>
                     <p className="text-sm text-gray-500">Duration</p>
-                    <p className="text-lg font-medium">{formatDuration(Number(selectedWorkout.duration))}</p>
+                    <p className="text-lg font-medium">
+                      {formatDuration(Number(selectedWorkout.duration))}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Completed</p>
                     <p className="text-lg font-medium">
-                      {formatDistanceToNow(new Date(selectedWorkout.createdAt), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(selectedWorkout.createdAt), {
+                        addSuffix: true,
+                      })}
                     </p>
                   </div>
                 </div>
@@ -672,8 +773,8 @@ export default function Profile() {
 
               <button
                 onClick={() => {
-                  setIsModalOpen(false)
-                  handleStartWorkout(selectedWorkout)
+                  setIsModalOpen(false);
+                  handleStartWorkout(selectedWorkout);
                 }}
                 className="mt-6 w-full flex items-center justify-center gap-2 bg-blue-500 text-white font-medium p-4 rounded-lg hover:bg-blue-600 transition-colors"
               >
@@ -684,7 +785,7 @@ export default function Profile() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (confirm('Remove this workout from favorites?')) {
+                  if (confirm("Remove this workout from favorites?")) {
                     handleDeleteWorkout(selectedWorkout.id);
                     setIsModalOpen(false);
                   }
@@ -709,5 +810,5 @@ export default function Profile() {
         </a>
       </div>
     </div>
-  )
+  );
 }

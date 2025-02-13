@@ -9,8 +9,9 @@ import { useState } from "react";
 interface Exercise {
   exercise: string;
   name?: string;
-  metric?: 'reps' | 'distance' | 'calories';
-  amount?: number;
+  metric?: "reps" | "distance" | "calories";
+  distance?: number;
+  calories?: number;
   sets?: number;
   reps?: number | string;
   weight?: number;
@@ -49,6 +50,27 @@ export interface WorkoutSummaryProps {
   completedAt: Date;
 }
 
+// Helper: Normalize exercises from the saved workout
+const normalizeExercises = (exercisesInput: any): Exercise[] => {
+  let exercisesData: any[] = [];
+  if (typeof exercisesInput === "string") {
+    try {
+      exercisesData = JSON.parse(exercisesInput);
+    } catch (error) {
+      console.error("Error parsing exercises JSON:", error);
+    }
+  } else if (Array.isArray(exercisesInput)) {
+    exercisesData = exercisesInput;
+  }
+  return exercisesData.map((ex) => ({
+    ...ex,
+    reps: Number(ex.reps) || 0,
+    distance: Number(ex.distance) || 0,
+    calories: Number(ex.calories) || 0,
+    weight: Number(ex.weight) || 0,
+  }));
+};
+
 export default function WorkoutSummary({
   isOpen,
   onClose,
@@ -69,7 +91,7 @@ export default function WorkoutSummary({
 
   const handleSave = async () => {
     if (!user) {
-      window.location.href = '/api/auth/login';
+      window.location.href = "/api/auth/login";
       return;
     }
 
@@ -84,41 +106,42 @@ export default function WorkoutSummary({
         duration: duration.toString(),
         difficulty: workout.difficulty || "medium",
         targetMuscles: workout.targetMuscles || [],
-        ...(workout.type === 'TABATA' && {
+        ...(workout.type === "TABATA" && {
           workTime: workout.workTime,
           restTime: workout.restTime,
           rounds: workout.rounds,
         }),
-        ...(workout.type === 'EMOM' && {
+        ...(workout.type === "EMOM" && {
           intervalTime: workout.intervalTime,
           roundsPerMovement: workout.roundsPerMovement,
         }),
-        ...(workout.type === 'AMRAP' && {
+        ...(workout.type === "AMRAP" && {
           timeCap: workout.timeCap,
         }),
-        ...(workout.type === 'DAILY' && {
+        ...(workout.type === "DAILY" && {
           warmup: workout.warmup,
           mainWorkout: workout.mainWorkout,
           cooldown: workout.cooldown,
         }),
       };
 
-      const response = await fetch('/api/workouts/save', {
-        method: 'POST',
+      const response = await fetch("/api/workouts/save", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(workoutData),
       });
-  
+
       if (response.ok) {
-        // Immediately redirect to profile page on successful save
-        window.location.href = '/profile';
+        window.location.href = "/profile";
       } else {
-        throw new Error('Failed to save workout');
+        throw new Error("Failed to save workout");
       }
     } catch (error) {
-      setSaveError('Failed to save workout');
+      setSaveError("Failed to save workout");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -129,6 +152,8 @@ export default function WorkoutSummary({
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
+
+  const normalizedExercises = normalizeExercises(workout.exercises);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -152,7 +177,7 @@ export default function WorkoutSummary({
               )}
             </div>
 
-            {/* TABATA Specific Details */}
+            {/* Type-Specific Details */}
             {workout.type === "TABATA" && (
               <div>
                 <h3 className="font-medium text-gray-900 mb-2">Tabata Details</h3>
@@ -162,8 +187,6 @@ export default function WorkoutSummary({
                 <p className="text-sm text-gray-500">Rounds: {workout.rounds}</p>
               </div>
             )}
-
-            {/* AMRAP Specific Details */}
             {workout.type === "AMRAP" && workout.timeCap && (
               <div>
                 <h3 className="font-medium text-gray-900 mb-2">AMRAP Details</h3>
@@ -172,8 +195,6 @@ export default function WorkoutSummary({
                 </p>
               </div>
             )}
-
-            {/* EMOM Specific Details */}
             {workout.type === "EMOM" && (
               <div>
                 <h3 className="font-medium text-gray-900 mb-2">EMOM Details</h3>
@@ -220,179 +241,94 @@ export default function WorkoutSummary({
             {/* Exercises */}
             <div>
               <h3 className="font-medium mb-2">Exercises</h3>
-              {["EMOM", "FOR TIME", "AMRAP", "TABATA"].includes(workout.type) ? (
-                (() => {
-                  let exercisesData: Exercise[] = [];
-                  if (typeof workout.exercises === "string") {
-                    try {
-                      exercisesData = JSON.parse(workout.exercises);
-                    } catch (error) {
-                      console.error("Error parsing exercises JSON:", error);
-                    }
-                  } else if (Array.isArray(workout.exercises)) {
-                    exercisesData = workout.exercises;
-                  }
-                  return exercisesData.length > 0 ? (
-                    <ul className="space-y-2">
-                      {exercisesData.map((exercise: Exercise, index: number) => (
-                        <li key={index} className="text-sm bg-gray-50 p-2 rounded">
-                          <span className="font-medium">
-                            {exercise.name || exercise.exercise}
-                          </span>
-                          {exercise.metric && (
-                            <span className="text-gray-500">
-                              {" "}
-                              • {exercise.amount || ""} {exercise.metric}
-                            </span>
-                          )}
-                          {exercise.sets && (
-                            <span className="text-gray-500">
-                              {" "}
-                              • {exercise.sets} sets
-                            </span>
-                          )}
-                          {exercise.duration && (
-                            <span className="text-gray-500">
-                              {" "}
-                              • {exercise.duration}
-                            </span>
-                          )}
-                          {exercise.rest && (
-                            <span className="text-gray-500">
-                              {" "}
-                              • Rest: {exercise.rest}
-                            </span>
-                          )}
-                          {exercise.notes && (
-                            <p className="text-xs text-gray-500 mt-1 italic">
-                              {exercise.notes}
-                            </p>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-gray-400">No exercise details available</p>
-                  );
-                })()
-              ) : workout.type === "DAILY" ? (
-                <>
-                  {workout.warmup && workout.warmup.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium text-gray-500 mb-2">Warm-up</h4>
-                      <ul className="space-y-2">
-                        {workout.warmup.map((exercise: Exercise, index: number) => (
-                          <li key={`warmup-${index}`} className="text-sm bg-gray-50 p-2 rounded">
-                            <span className="font-medium">
-                              {exercise.name || exercise.exercise}
-                            </span>
-                            {exercise.sets && (
-                              <span className="text-gray-500"> • {exercise.sets} sets</span>
-                            )}
-                            {exercise.reps && (
-                              <span className="text-gray-500"> • {exercise.reps} reps</span>
-                            )}
-                            {exercise.duration && (
-                              <span className="text-gray-500"> • {exercise.duration}</span>
-                            )}
-                            {exercise.rest && (
-                              <span className="text-gray-500"> • Rest: {exercise.rest}</span>
-                            )}
-                            {exercise.notes && (
-                              <p className="text-xs text-gray-500 mt-1 italic">
-                                {exercise.notes}
-                              </p>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {workout.mainWorkout && workout.mainWorkout.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium text-gray-500 mb-2">Main Workout</h4>
-                      <ul className="space-y-2">
-                        {workout.mainWorkout.map((exercise: Exercise, index: number) => (
-                          <li key={`main-${index}`} className="text-sm bg-gray-50 p-2 rounded">
-                            <span className="font-medium">
-                              {exercise.name || exercise.exercise}
-                            </span>
-                            {exercise.sets && (
-                              <span className="text-gray-500"> • {exercise.sets} sets</span>
-                            )}
-                            {exercise.reps && (
-                              <span className="text-gray-500"> • {exercise.reps} reps</span>
-                            )}
-                            {exercise.duration && (
-                              <span className="text-gray-500"> • {exercise.duration}</span>
-                            )}
-                            {exercise.rest && (
-                              <span className="text-gray-500"> • Rest: {exercise.rest}</span>
-                            )}
-                            {exercise.notes && (
-                              <p className="text-xs text-gray-500 mt-1 italic">
-                                {exercise.notes}
-                              </p>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {workout.cooldown && workout.cooldown.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500 mb-2">Cool-down</h4>
-                      <ul className="space-y-2">
-                        {workout.cooldown.map((exercise: Exercise, index: number) => (
-                          <li key={`cooldown-${index}`} className="text-sm bg-gray-50 p-2 rounded">
-                            <span className="font-medium">
-                              {exercise.name || exercise.exercise}
-                            </span>
-                            {exercise.duration && (
-                              <span className="text-gray-500"> • {exercise.duration}</span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </>
+              {normalizedExercises.length > 0 ? (
+                <ul className="space-y-2">
+                  {normalizedExercises.map((exercise, index) => (
+                    <li key={index} className="text-sm bg-gray-50 p-2 rounded">
+                      <span className="font-medium">
+                        {exercise.name || exercise.exercise}
+                      </span>
+                      {exercise.metric && (
+                        <span className="text-gray-500">
+                          {" "}
+                          •{" "}
+                          {exercise.metric === "reps"
+                            ? `${exercise.reps} reps`
+                            : exercise.metric === "distance"
+                            ? `${exercise.distance} m`
+                            : exercise.metric === "calories"
+                            ? `${exercise.calories} cals`
+                            : ""}
+                        </span>
+                      )}
+                      {exercise.weight && (
+                        <span className="text-gray-500">
+                          {" "}
+                          • Weight: {exercise.weight} kg
+                        </span>
+                      )}
+                      {exercise.sets !== undefined && (
+                        <span className="text-gray-500">
+                          {" "}
+                          • {exercise.sets} sets
+                        </span>
+                      )}
+                      {exercise.duration && (
+                        <span className="text-gray-500">
+                          {" "}
+                          • {exercise.duration}
+                        </span>
+                      )}
+                      {exercise.rest && (
+                        <span className="text-gray-500">
+                          {" "}
+                          • Rest: {exercise.rest}
+                        </span>
+                      )}
+                      {exercise.notes && (
+                        <p className="text-xs text-gray-500 mt-1 italic">
+                          {exercise.notes}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               ) : (
                 <p className="text-gray-400">No exercise details available</p>
               )}
             </div>
-
-            {/* Default Action Buttons (only rendered when hideActions is false) */}
-            {!hideActions && (
-              <div className="grid grid-cols-3 gap-3 pt-4">
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Save className="w-4 h-4" />
-                  {isSaving ? "Saving..." : "Save"}
-                </button>
-                <button
-                  onClick={onShare}
-                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-                >
-                  <Share2 className="w-4 h-4" />
-                  Share
-                </button>
-                <button
-                  onClick={() => router.push("/")}
-                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
-                >
-                  <Home className="w-4 h-4" />
-                  Exit
-                </button>
-              </div>
-            )}
           </div>
+
+          {/* Default Action Buttons */}
+          {!hideActions && (
+            <div className="grid grid-cols-3 gap-3 pt-4">
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save className="w-4 h-4" />
+                {isSaving ? "Saving..." : "Save"}
+              </button>
+              <button
+                onClick={onShare}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+              >
+                <Share2 className="w-4 h-4" />
+                Share
+              </button>
+              <button
+                onClick={() => router.push("/")}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+              >
+                <Home className="w-4 h-4" />
+                Exit
+              </button>
+            </div>
+          )}
         </div>
       </div>
-
+      {/* Confirmation Modal */}
       {showConfirmation && savedWorkoutData && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 max-w-lg w-full">
@@ -402,7 +338,7 @@ export default function WorkoutSummary({
             </pre>
             <div className="mt-4 flex justify-end gap-4">
               <button
-                onClick={() => window.location.href = '/profile'}
+                onClick={() => (window.location.href = "/profile")}
                 className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
                 Go to Profile
@@ -420,5 +356,3 @@ export default function WorkoutSummary({
     </div>
   );
 }
-
-
