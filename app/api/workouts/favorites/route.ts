@@ -14,9 +14,6 @@ export async function GET(req: Request) {
     }
     console.log('Fetching favorites for user:', session.user.sub);
 
-    // Use Prisma to find all favoriteWorkout records for the user.
-    // We include the related Workout record. To get extra fields (such as workTime, restTime, etc.)
-    // we cast the select object to any.
     const favorites = await prisma.favoriteWorkout.findMany({
       where: { userId: session.user.sub },
       include: {
@@ -35,7 +32,7 @@ export async function GET(req: Request) {
             intervalTime: true,
             roundsPerMovement: true,
             timeCap: true,
-          } as any, // Casting to any allows inclusion of extra fields.
+          } as any,
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -43,25 +40,29 @@ export async function GET(req: Request) {
 
     console.log('Raw favorites data:', JSON.stringify(favorites, null, 2));
 
-    // Process each favorite so that the workout object is returned directly
-    // (with extra fields, and with exercises parsed).
     const workouts = favorites.map((fav) => {
-      // The related workout is in fav.workout; cast it to any.
       const workoutObj = fav.workout as any;
       let parsedExercises;
       try {
-        // If exercises are stored as a string, parse them.
         parsedExercises =
           typeof workoutObj.exercises === 'string'
             ? JSON.parse(workoutObj.exercises)
             : workoutObj.exercises;
+        // Normalize numeric fields if the exercises are in an array.
+        if (Array.isArray(parsedExercises)) {
+          parsedExercises = parsedExercises.map((ex: any) => ({
+            ...ex,
+            reps: Number(ex.reps) || 0,
+            distance: Number(ex.distance) || 0,
+            calories: Number(ex.calories) || 0,
+            weight: Number(ex.weight) || 0,
+          }));
+        }
       } catch (error) {
         console.error('Error parsing exercises:', error);
-        // Fallback to an empty structured object.
         parsedExercises = { warmup: [], mainWorkout: [], cooldown: [] };
       }
 
-      // Build a base workout object that includes the extra fields.
       const baseWorkout = {
         id: workoutObj.id,
         type: workoutObj.type,
@@ -77,7 +78,6 @@ export async function GET(req: Request) {
         timeCap: workoutObj.timeCap,
       };
 
-      // For DAILY workouts, unpack the structured exercises object.
       if (
         workoutObj.type === 'DAILY' &&
         parsedExercises &&
@@ -88,11 +88,9 @@ export async function GET(req: Request) {
           warmup: parsedExercises.warmup || [],
           mainWorkout: parsedExercises.mainWorkout || [],
           cooldown: parsedExercises.cooldown || [],
-          // Also include the full combined exercises object.
           exercises: parsedExercises,
         };
       } else {
-        // For non-DAILY workouts, return the parsed exercises directly.
         return {
           ...baseWorkout,
           exercises: parsedExercises,
