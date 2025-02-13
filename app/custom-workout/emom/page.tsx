@@ -1,75 +1,84 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Plus, Play, Trash2, Save, ChevronLeft, Timer, Clock, Repeat } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react";
+import { Plus, Play, Trash2, ChevronLeft } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface Exercise {
-  id: string
-  name: string
-  reps?: number
-  weight?: number
-  distance?: number
-  calories?: number
-  notes?: string
-  // The metric key tells us which value to use.
-  metric: 'reps' | 'distance' | 'calories'
+  id: string;
+  name: string;
+  // Store these as strings for editing; they will be converted on blur.
+  reps?: string;
+  weight?: number;
+  distance?: string;
+  calories?: string;
+  notes?: string;
+  // The metric key tells us which field's value to use.
+  metric: 'reps' | 'distance' | 'calories';
 }
 
 interface EmomWorkout {
-  name: string
-  intervalTime: number
-  intervalUnit: 'seconds' | 'minutes'
-  roundsPerMovement: number
-  exercises: Exercise[]
+  name: string;
+  intervalTime: number;
+  intervalUnit: 'seconds' | 'minutes';
+  roundsPerMovement: number;
+  exercises: Exercise[];
 }
 
 interface GymExercise {
-  name: string
-  type: string
-  equipment: string
-  difficulty: string
-  muscle: string
-  description: string
+  name: string;
+  type: string;
+  equipment: string;
+  difficulty: string;
+  muscle: string;
+  description: string;
 }
 
 export default function EmomWorkoutCreator() {
-  const router = useRouter()
+  const router = useRouter();
   const [workout, setWorkout] = useState<EmomWorkout>({
     name: "",
     intervalTime: 30,
     intervalUnit: 'seconds',
-    roundsPerMovement: 0,
+    roundsPerMovement: 1,
     exercises: []
-  })
-  const [exercises, setExercises] = useState<GymExercise[]>([])
-  const [currentExercise, setCurrentExercise] = useState("")
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [suggestions, setSuggestions] = useState<GymExercise[]>([])
-  const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null)
+  });
 
-  // Calculate total rounds and total workout time if needed.
-  const totalRounds = workout.roundsPerMovement * workout.exercises.length
-  const totalTime = workout.intervalTime * totalRounds
+  // Separate state for roundsPerMovement input as a string.
+  const [roundsInput, setRoundsInput] = useState<string>("1");
+
+  const [exercises, setExercises] = useState<GymExercise[]>([]);
+  const [currentExercise, setCurrentExercise] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<GymExercise[]>([]);
+  const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null);
+
+  // Calculate total rounds and total workout time.
+  const totalRounds = workout.roundsPerMovement * workout.exercises.length;
+  const totalTime = workout.intervalTime * totalRounds;
 
   // Update intervalTime from user input.
   const updateInterval = (value: string) => {
-    const parsedValue = value === '' ? 0 : parseInt(value)
-    setWorkout({
-      ...workout,
-      intervalTime: parsedValue
-    })
-  }
+    const parsedValue = value === '' ? 0 : parseInt(value);
+    setWorkout({ ...workout, intervalTime: parsedValue });
+  };
 
-  // Update roundsPerMovement from user input.
-  const updateRoundsPerMovement = (value: string) => {
-    const parsedValue = value === '' ? 0 : parseInt(value)
-    setWorkout({
-      ...workout,
-      roundsPerMovement: Math.max(1, parsedValue || 1)
-    })
-  }
+  // Update roundsPerMovement input state.
+  const handleRoundsInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRoundsInput(e.target.value);
+  };
+
+  // On blur, default to 1 if blank, invalid, or less than 1.
+  const handleRoundsInputBlur = () => {
+    const parsedValue = parseInt(roundsInput);
+    if (!roundsInput || isNaN(parsedValue) || parsedValue < 1) {
+      setRoundsInput("1");
+      setWorkout({ ...workout, roundsPerMovement: 1 });
+    } else {
+      setWorkout({ ...workout, roundsPerMovement: parsedValue });
+    }
+  };
 
   const addExercise = () => {
     setWorkout({
@@ -79,13 +88,13 @@ export default function EmomWorkoutCreator() {
         {
           id: Date.now().toString(),
           name: '',
-          // Instead of defaulting to 10 reps, we leave the numeric fields undefined.
-          reps: undefined,
+          // Initialize as empty string so the field can be cleared.
+          reps: "",
           metric: 'reps'
         }
       ]
-    })
-  }
+    });
+  };
 
   // Update an exercise by its id.
   const updateExercise = (exerciseId: string, updates: Partial<Exercise>) => {
@@ -94,28 +103,27 @@ export default function EmomWorkoutCreator() {
       exercises: workout.exercises.map(ex =>
         ex.id === exerciseId ? { ...ex, ...updates } : ex
       )
-    })
-  }
+    });
+  };
 
   const removeExercise = (exerciseId: string) => {
     setWorkout({
       ...workout,
       exercises: workout.exercises.filter(ex => ex.id !== exerciseId)
-    })
-  }
+    });
+  };
 
-  // Fetch exercise suggestions from CSV.
+  // Fetch exercise suggestions.
   useEffect(() => {
     fetch('/api/exercises')
       .then(res => res.json())
       .then(data => setExercises(data))
-      .catch(error => console.error('Error fetching exercises:', error))
-  }, [])
+      .catch(error => console.error('Error fetching exercises:', error));
+  }, []);
 
   const handleExerciseInput = (value: string, exerciseId: string) => {
-    // Update the exercise name as user types.
-    updateExercise(exerciseId, { name: value })
-    setCurrentExerciseId(exerciseId)
+    updateExercise(exerciseId, { name: value });
+    setCurrentExerciseId(exerciseId);
     
     if (value.length >= 2) {
       const filtered = exercises
@@ -123,57 +131,78 @@ export default function EmomWorkoutCreator() {
           ex.name.toLowerCase().includes(value.toLowerCase()) ||
           ex.muscle.toLowerCase().includes(value.toLowerCase())
         )
-        .slice(0, 3)
-      setSuggestions(filtered)
-      setShowSuggestions(filtered.length > 0)
+        .slice(0, 3);
+      setSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
     } else {
-      setShowSuggestions(false)
+      setShowSuggestions(false);
     }
-  }
+  };
 
   const handleSuggestionClick = (selectedName: string, exerciseId: string) => {
-    updateExercise(exerciseId, { name: selectedName })
-    setShowSuggestions(false)
-    setCurrentExerciseId(null)
-  }
+    updateExercise(exerciseId, { name: selectedName });
+    setShowSuggestions(false);
+    setCurrentExerciseId(null);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, exerciseId: string) => {
     if (e.key === 'Enter' || e.key === 'Return') {
-      e.preventDefault()
-      setShowSuggestions(false)
-      setCurrentExerciseId(null)
+      e.preventDefault();
+      setShowSuggestions(false);
+      setCurrentExerciseId(null);
     }
-  }
+  };
 
-  // When the user changes the metric, update the exercise so that the old numeric value is cleared
-  // and the new metric field is initialized.
   const handleMetricChange = (e: React.ChangeEvent<HTMLSelectElement>, exerciseId: string) => {
-    const newMetric = e.target.value as 'reps' | 'distance' | 'calories'
+    const newMetric = e.target.value as 'reps' | 'distance' | 'calories';
     updateExercise(exerciseId, {
       metric: newMetric,
-      // Clear any previously set metric values.
-      reps: undefined,
-      distance: undefined,
-      calories: undefined,
-      // Optionally, initialize the new metric value to 0.
-      [newMetric]: 0,
-    })
-  }
+      // Clear previous values, initialize new metric field as empty.
+      reps: "",
+      distance: "",
+      calories: "",
+      [newMetric]: ""
+    });
+  };
 
-  // Start the workout by saving the current workout to localStorage and navigating to the session page.
+  // Allow the user to edit numeric metric fields as strings.
+  const handleMetricValueChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    exerciseId: string,
+    metric: 'reps' | 'distance' | 'calories'
+  ) => {
+    const val = e.target.value;
+    updateExercise(exerciseId, { [metric]: val });
+  };
+
+  // On blur, if empty or invalid, set to 0.
+  const handleMetricValueBlur = (
+    e: React.FocusEvent<HTMLInputElement>,
+    exerciseId: string,
+    metric: 'reps' | 'distance' | 'calories'
+  ) => {
+    const val = e.target.value;
+    if (val === "" || isNaN(parseInt(val))) {
+      updateExercise(exerciseId, { [metric]: 0 });
+    } else {
+      updateExercise(exerciseId, { [metric]: parseInt(val) });
+    }
+  };
+
+  // Start workout: save to localStorage and navigate.
   const startWorkout = () => {
-    if (workout.exercises.length === 0 || !workout.intervalTime || !workout.roundsPerMovement) return
+    if (workout.exercises.length === 0 || !workout.intervalTime || !workout.roundsPerMovement) return;
 
-    // Convert intervalTime to seconds if the unit is minutes.
+    // Convert intervalTime to seconds if unit is minutes.
     const workoutToSave = {
       ...workout,
       intervalTime:
-        workout.intervalUnit === 'minutes' ? workout.intervalTime * 60 : workout.intervalTime
-    }
+        workout.intervalUnit === 'minutes' ? workout.intervalTime * 60 : workout.intervalTime,
+    };
 
-    localStorage.setItem('currentEmomWorkout', JSON.stringify(workoutToSave))
-    router.push('/custom-workout/emom/session')
-  }
+    localStorage.setItem('currentEmomWorkout', JSON.stringify(workoutToSave));
+    router.push('/custom-workout/emom/session');
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-24">
@@ -221,7 +250,7 @@ export default function EmomWorkoutCreator() {
                         setWorkout({ 
                           ...workout, 
                           intervalTime: workout.intervalUnit === 'seconds' ? 30 : 1 
-                        })
+                        });
                       }
                     }}
                     className="w-full h-12 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-lg font-medium"
@@ -254,14 +283,10 @@ export default function EmomWorkoutCreator() {
               <label className="block text-sm text-gray-600 mb-2">Rounds per Movement</label>
               <input
                 type="number"
-                min=""
-                value={workout.roundsPerMovement}
-                onChange={(e) => updateRoundsPerMovement(e.target.value)}
-                onBlur={() => {
-                  if (!workout.roundsPerMovement) {
-                    setWorkout({ ...workout, roundsPerMovement: 1})
-                  }
-                }}
+                min="0"
+                value={roundsInput}
+                onChange={handleRoundsInputChange}
+                onBlur={handleRoundsInputBlur}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 placeholder="Enter rounds per movement"
               />
@@ -348,14 +373,11 @@ export default function EmomWorkoutCreator() {
                   </select>
                   <input
                     type="number"
-                    min=""
+                    min="0"
                     placeholder="Amount"
-                    value={exercise[exercise.metric] ?? ''}
-                    onChange={(e) =>
-                      updateExercise(exercise.id, {
-                        [exercise.metric]: parseInt(e.target.value) || 0
-                      })
-                    }
+                    value={exercise[exercise.metric] || ""}
+                    onChange={(e) => handleMetricValueChange(e, exercise.id, exercise.metric)}
+                    onBlur={(e) => handleMetricValueBlur(e, exercise.id, exercise.metric)}
                     className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   />
                 </div>
@@ -412,5 +434,5 @@ export default function EmomWorkoutCreator() {
         </div>
       </main>
     </div>
-  )
+  );
 }

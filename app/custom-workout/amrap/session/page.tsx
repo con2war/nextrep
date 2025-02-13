@@ -23,7 +23,9 @@ interface AmrapWorkout {
   name: string;
   timeCap: number; // in minutes
   exercises: Exercise[];
-  timer: number; // in seconds, loaded from storage
+  timer: number; // in seconds (loaded from storage)
+  difficulty?: string;
+  targetMuscles?: string[];
 }
 
 export default function AmrapSession() {
@@ -39,111 +41,69 @@ export default function AmrapSession() {
   const [totalTime, setTotalTime] = useState(0);
   const [showCountdown, setShowCountdown] = useState(false);
   const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null);
-  const [audioInitialized, setAudioInitialized] = useState(false);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+
+  // Request a wake lock so the screen stays awake.
+  useEffect(() => {
+    let wakeLock: any = null;
+    const requestWakeLock = async () => {
+      try {
+        if ("wakeLock" in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request("screen");
+          console.log("Wake Lock is active");
+        }
+      } catch (err) {
+        console.error("Failed to obtain wake lock:", err);
+      }
+    };
+
+    requestWakeLock();
+
+    return () => {
+      if (wakeLock) {
+        wakeLock.release().then(() => {
+          console.log("Wake Lock released");
+          wakeLock = null;
+        });
+      }
+    };
+  }, []);
 
   // Initialize beep sound on mount.
   useEffect(() => {
     const audio = new Audio("/beep.mp3");
     audio.volume = 0.5;
     audio.preload = "auto";
-    audio.addEventListener("error", (e) => {
-      console.error("Audio loading error:", e);
-    });
-    audio.addEventListener("canplaythrough", () => {
-      console.log("Audio loaded successfully");
-    });
     try {
       audio.load();
       setBeepSound(audio);
     } catch (error) {
       console.error("Error loading audio:", error);
     }
-    return () => {
-      audio.removeEventListener("error", () => {});
-      audio.removeEventListener("canplaythrough", () => {});
-    };
   }, []);
 
-  // Initialize audio on first user interaction.
-  const initializeAudio = () => {
-    if (!audioInitialized && beepSound) {
-      console.log("Attempting to initialize audio...");
-      const playPromise = beepSound.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            beepSound.pause();
-            beepSound.currentTime = 0;
-          })
-          .catch((error) => console.error("Audio initialization error:", error));
-      }
-      setAudioInitialized(true);
+  // Always speak when needed.
+  const speak = useCallback((text: string) => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.volume = 1.5;
+      window.speechSynthesis.speak(utterance);
     }
-  };
+  }, []);
 
-  const testAudio = () => {
-    if (isAudioEnabled && beepSound) {
-      beepSound.currentTime = 0;
-      const playPromise = beepSound.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            beepSound.pause();
-            beepSound.currentTime = 0;
-            console.log("Beep sound tested successfully");
-          })
-          .catch((error) => console.error("Beep test error:", error));
-      }
-      if ("speechSynthesis" in window) {
-        const testUtterance = new SpeechSynthesisUtterance("Audio check");
-        testUtterance.volume = 1.5;
-        window.speechSynthesis.speak(testUtterance);
-      }
-    }
-  };
-
-  const toggleAudio = () => {
-    setIsAudioEnabled(!isAudioEnabled);
-    if (!audioInitialized) {
-      testAudio();
-      setAudioInitialized(true);
-    }
-  };
-
-  const speak = useCallback(
-    (text: string) => {
-      if (isAudioEnabled && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.volume = 1.5;
-        window.speechSynthesis.speak(utterance);
-      }
-    },
-    [isAudioEnabled]
-  );
-
+  // Always play beep.
   const beep = () => {
-    if (isAudioEnabled && beepSound) {
-      console.log("Executing beep function");
+    if (beepSound) {
       beepSound.currentTime = 0;
       const playPromise = beepSound.play();
       if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            console.log("Beep played successfully");
-          })
-          .catch((error) => {
-            console.error("Error playing beep:", error);
-            setTimeout(() => {
-              beepSound.play()
-                .then(() => console.log("Retry beep successful"))
-                .catch((e) => console.error("Retry beep failed:", e));
-            }, 100);
-          });
+        playPromise.catch((error) => {
+          console.error("Error playing beep:", error);
+          setTimeout(() => {
+            beepSound.play().catch((e) => console.error("Retry error:", e));
+          }, 100);
+        });
       }
-    } else {
-      console.log("Beep skipped - Audio disabled or no beepSound", !isAudioEnabled, !beepSound);
     }
   };
 
@@ -152,12 +112,11 @@ export default function AmrapSession() {
     window.scrollTo(0, 0);
   }, []);
 
-  // Load workout data on mount and normalize exercise metrics (including weight).
+  // Load workout data on mount and normalize numeric fields.
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentAmrapWorkout");
     if (savedWorkout) {
-      let parsedWorkout: AmrapWorkout = JSON.parse(savedWorkout);
-      // Normalize each exercise so that the metric values (including weight) are numbers.
+      let parsedWorkout = JSON.parse(savedWorkout) as AmrapWorkout;
       parsedWorkout.exercises = parsedWorkout.exercises.map((ex: Exercise) => ({
         ...ex,
         reps: ex.reps ?? 0,
@@ -173,25 +132,25 @@ export default function AmrapSession() {
     }
   }, [router]);
 
-  // Timer logic (countdown from timeCap in seconds).
+  // Timer logic: countdown from timeCap (converted to seconds).
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRunning && !isPaused && workout) {
-      console.log("Timer started");
       interval = setInterval(() => {
         setTimeRemaining((prevTime) => {
           const newTime = prevTime - 1;
-          console.log("Time remaining:", newTime);
+          // When 3 seconds remain, play the beep.
           if (newTime === 3) {
-            console.log("At 3 seconds mark - Playing beep");
             beep();
           }
-          // Announce halfway (workout.timeCap * 60 is total seconds).
-          if (newTime === Math.floor((workout.timeCap * 60) / 2)) {
+          // When halfway through the workout, speak "Half way".
+          if (!hasAnnouncedHalfway && newTime === Math.floor(totalTime / 2)) {
             speak("Half way");
+            setHasAnnouncedHalfway(true);
           }
-          if (newTime === 10) {
-            speak("10 seconds remaining");
+          // When 1 minute remains, speak "1 minute remaining".
+          if (newTime === 60) {
+            speak("1 minute remaining");
           }
           if (newTime <= 0) {
             handleComplete();
@@ -201,42 +160,39 @@ export default function AmrapSession() {
         });
       }, 1000);
     }
-    return () => {
-      clearInterval(interval);
-      console.log("Timer cleanup");
-    };
-  }, [isRunning, isPaused, workout, speak]);
+    return () => clearInterval(interval);
+  }, [isRunning, isPaused, workout, totalTime, hasAnnouncedHalfway, speak]);
 
   const startWorkout = () => {
-    if (isRunning) {
-      setIsRunning(false);
-      setIsPaused(true);
+    if (!isRunning && !isPaused) {
+      // Start with a countdown.
+      setShowCountdown(true);
     } else if (isPaused) {
       setIsRunning(true);
       setIsPaused(false);
     } else {
-      initializeAudio();
-      setShowCountdown(true);
-      console.log("Starting new workout, reset states");
+      setIsRunning(false);
+      setIsPaused(true);
     }
   };
 
-  const formatTime = (timeInSeconds: number) => {
-    const minutes = Math.floor(timeInSeconds / 60);
-    const seconds = timeInSeconds % 60;
-    return `${minutes.toString().padStart(2, "0")}:${seconds
-      .toString()
-      .padStart(2, "0")}`;
+  const handleCountdownComplete = () => {
+    setShowCountdown(false);
+    setIsRunning(true);
+    setIsPaused(false);
+    speak("Let's Go");
   };
 
   const handleComplete = () => {
     setIsRunning(false);
+    setIsPaused(true);
+    window.speechSynthesis.cancel();
     setCompletedAt(new Date());
     speak("Well done");
     setShowSummary(true);
   };
 
-  // Handler for sharing the workout summary.
+  // Handler for sharing workout summary.
   const handleShare = async () => {
     try {
       const shareData = {
@@ -258,9 +214,21 @@ export default function AmrapSession() {
     setShowSummary(false);
   };
 
-  if (!workout) {
-    return null;
-  }
+  // When the user clicks "Start Workout" in the summary modal.
+  const handleStartWorkout = () => {
+    if (!workout) return;
+    localStorage.setItem("selectedWorkout", JSON.stringify(workout));
+    router.push("/custom-workout/amrap/session");
+  };
+
+  // Format seconds as mm:ss.
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  if (!workout) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -286,22 +254,17 @@ export default function AmrapSession() {
 
         {/* Workout Name */}
         <h1 className="text-3xl font-bold mb-4 text-center">
-          {workout?.name || "AMRAP Workout"}
+          {workout.name || "AMRAP Workout"}
         </h1>
 
         {/* Timer Display */}
         <div className="text-center mb-8">
           <div
-            className={`text-6xl font-mono font-bold mb-4 ${
-              timeRemaining <= 10 ? "text-red-500" : ""
-            }`}
+            className={`text-6xl font-mono font-bold mb-4 ${timeRemaining <= 10 ? "text-red-500" : ""}`}
           >
             {showCountdown ? (
               <WorkoutCountdown
-                onComplete={() => {
-                  setShowCountdown(false);
-                  setIsRunning(true);
-                }}
+                onComplete={handleCountdownComplete}
                 onStart={() => {
                   setIsRunning(false);
                   setIsPaused(false);
@@ -328,54 +291,37 @@ export default function AmrapSession() {
                 </>
               )}
             </button>
-            <button
-              onClick={toggleAudio}
-              className={`p-2 rounded-lg ${
-                isAudioEnabled
-                  ? "bg-green-500 hover:bg-green-600"
-                  : "bg-red-500 hover:bg-red-600"
-              } text-white transition-colors`}
-              title={isAudioEnabled ? "Disable Audio" : "Enable Audio"}
-            >
-              {isAudioEnabled ? (
-                <Volume2 className="w-5 h-5" />
-              ) : (
-                <VolumeX className="w-5 h-5" />
-              )}
-            </button>
           </div>
         </div>
 
-        {/* (Optional) Display Workout Details */}
+        {/* Display Workout Details */}
         <div className="bg-white/50 rounded-lg border border-gray-200 p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">
             {workout.timeCap} Minute AMRAP:
           </h2>
           <div className="space-y-4">
             {workout.exercises.map((exercise) => (
-              <div key={exercise.id} className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{exercise.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {exercise.metric === "reps" && exercise.reps
-                      ? `${exercise.reps} reps`
-                      : exercise.metric === "distance" && exercise.distance
-                      ? `${exercise.distance}m`
-                      : exercise.metric === "calories" && exercise.calories
-                      ? `${exercise.calories} cals`
-                      : ""}
-                    {exercise.weight ? ` (${exercise.weight}kg)` : ""}
-                  </p>
-                  {exercise.notes && (
-                    <p className="text-sm text-gray-400">{exercise.notes}</p>
-                  )}
-                </div>
+              <div key={exercise.id}>
+                <p className="font-medium">{exercise.name}</p>
+                <p className="text-sm text-gray-500">
+                  {exercise.metric === "reps" && exercise.reps
+                    ? `${exercise.reps} reps`
+                    : exercise.metric === "distance" && exercise.distance
+                    ? `${exercise.distance} m`
+                    : exercise.metric === "calories" && exercise.calories
+                    ? `${exercise.calories} cals`
+                    : ""}
+                  {exercise.weight ? ` (Weight: ${exercise.weight} kg)` : ""}
+                </p>
+                {exercise.notes && (
+                  <p className="text-sm text-gray-400">{exercise.notes}</p>
+                )}
               </div>
             ))}
           </div>
         </div>
 
-        {/* WorkoutSummary Component */}
+        {/* Workout Summary Modal */}
         <WorkoutSummary
           isOpen={showSummary}
           onClose={() => setShowSummary(false)}
@@ -384,7 +330,6 @@ export default function AmrapSession() {
           workout={{
             name: workout.name,
             type: "AMRAP",
-            // Pass the exercises array as-is.
             exercises: Array.isArray(workout.exercises)
               ? workout.exercises
               : JSON.stringify(workout.exercises),

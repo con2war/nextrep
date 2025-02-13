@@ -40,6 +40,7 @@ export default function ForTimeWorkout() {
   const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null)
   const [exercises, setExercises] = useState<GymExercise[]>([])
   const suggestionRef = useRef<HTMLDivElement>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   // Load exercises on mount
   useEffect(() => {
@@ -159,6 +160,13 @@ export default function ForTimeWorkout() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Add a useEffect to scroll to top when preview is shown
+  useEffect(() => {
+    if (showPreview) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [showPreview]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">

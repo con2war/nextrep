@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Play,
   Pause,
   ChevronLeft,
-  Volume2,
-  VolumeX,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -40,7 +38,7 @@ interface EmomWorkout {
   intervalTime: number;
   intervalUnit: "seconds" | "minutes";
   roundsPerMovement: number;
-  exercises: Exercise[]; // could be saved as JSON string
+  exercises: Exercise[]; // Could be saved as a JSON string.
   difficulty?: string;
   targetMuscles?: string[];
 }
@@ -78,7 +76,33 @@ export default function EmomSession() {
   const [showSummary, setShowSummary] = useState(false);
   const [completedAt, setCompletedAt] = useState<Date | null>(null);
   const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+
+  // --- Keep screen awake using Wake Lock API ---
+  useEffect(() => {
+    let wakeLock: any = null;
+    const requestWakeLock = async () => {
+      if ("wakeLock" in navigator) {
+        try {
+          wakeLock = await (navigator as any).wakeLock.request("screen");
+          console.log("Wake lock acquired");
+        } catch (err) {
+          console.error("Failed to acquire wake lock:", err);
+        }
+      }
+    };
+
+    requestWakeLock();
+
+    return () => {
+      if (wakeLock) {
+        wakeLock.release().then(() => {
+          console.log("Wake lock released");
+          wakeLock = null;
+        });
+      }
+    };
+  }, []);
+  // --- End Wake Lock API ---
 
   // Initialize beep sound on mount.
   useEffect(() => {
@@ -93,13 +117,29 @@ export default function EmomSession() {
     }
   }, []);
 
-  // Helper: Speak a message.
-  const speak = (text: string) => {
+  // Helper: Always speak if available.
+  const speak = useCallback((text: string) => {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.volume = 1.5;
       window.speechSynthesis.speak(utterance);
+    }
+  }, []);
+
+  // Helper: Always play beep.
+  const beep = () => {
+    if (beepSound) {
+      beepSound.currentTime = 0;
+      const playPromise = beepSound.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          console.error("Error playing beep:", error);
+          setTimeout(() => {
+            beepSound.play().catch((e) => console.error("Retry error:", e));
+          }, 100);
+        });
+      }
     }
   };
 
@@ -131,6 +171,14 @@ export default function EmomSession() {
       timer = setInterval(() => {
         setTimeRemaining((prev) => {
           const newTime = prev - 1;
+          // At halfway through the interval, speak "Halfway".
+          if (newTime === Math.floor(workout.intervalTime / 2)) {
+            speak("Halfway");
+          }
+          // When 3 seconds remain, play the beep.
+          if (newTime === 3) {
+            beep();
+          }
           const totalRounds = workout.roundsPerMovement * workout.exercises.length;
           if (newTime <= 0) {
             if (currentRound >= totalRounds) {
@@ -172,7 +220,7 @@ export default function EmomSession() {
     speak("Let's Go");
   };
 
-  // End workout: stop timer, cancel speech, record completion, show summary modal.
+  // End workout: stop timer, cancel speech, record completion, show summary.
   const handleComplete = () => {
     setIsRunning(false);
     setIsPaused(true);
@@ -182,12 +230,7 @@ export default function EmomSession() {
     setShowSummary(true);
   };
 
-  // Toggle audio.
-  const toggleAudio = () => {
-    setIsAudioEnabled(!isAudioEnabled);
-  };
-
-  // When the user clicks "Start Workout" in the summary modal, save and restart session.
+  // When the user clicks "Start Workout" in the summary modal.
   const handleStartWorkout = () => {
     if (!workout) return;
     localStorage.setItem("selectedWorkout", JSON.stringify(workout));
@@ -259,13 +302,6 @@ export default function EmomSession() {
                   {isPaused ? "Resume" : "Start"}
                 </>
               )}
-            </button>
-            <button
-              onClick={toggleAudio}
-              className={`p-2 rounded-lg ${isAudioEnabled ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"} text-white transition-colors`}
-              title={isAudioEnabled ? "Disable Audio" : "Enable Audio"}
-            >
-              {isAudioEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
             </button>
           </div>
         </div>
