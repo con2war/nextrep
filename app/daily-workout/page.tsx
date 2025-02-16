@@ -153,7 +153,7 @@ export default function DailyWorkout() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const [showPreview, setShowPreview] = useState(false);
   const [generatedWorkout, setGeneratedWorkout] = useState<WorkoutData | null>(
@@ -771,14 +771,14 @@ export default function DailyWorkout() {
 
               <button
                 onClick={handleGenerateWorkout}
-                disabled={selectedMuscleGroups.length === 0 || loading}
+                disabled={selectedMuscleGroups.length === 0}
                 className={`w-full py-3 px-4 text-white rounded-lg transition-colors ${
-                  loading && selectedMuscleGroups.length > 0
+                  loading 
                     ? "bg-purple-500 hover:bg-purple-600" 
                     : "bg-blue-500 hover:bg-blue-600"
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                {loading && selectedMuscleGroups.length > 0 ? "Generating Workout..." : "Generate Workout"}
+                {loading ? "Generating Workout..." : "Generate Workout"}
               </button>
 
               {error && (
@@ -804,7 +804,9 @@ export default function DailyWorkout() {
           {["warmup", "mainWorkout", "cooldown"].map((section) => (
             <div key={section} className="mb-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                {section.replace(/([A-Z])/g, " $1").trim()}
+                {section === "warmup" ? "Warm Up" :
+                 section === "mainWorkout" ? "Main Workout" :
+                 "Cool Down"}
               </h3>
               <div className="space-y-4">
                 {Array.isArray(generatedWorkout?.[section as keyof WorkoutData]) &&

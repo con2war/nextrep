@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Play,
-  Pause,
-  ChevronLeft,
-  X,
-} from "lucide-react";
+import { Play, Pause, ChevronLeft, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import WorkoutCountdown from "@/app/components/WorkoutCountdown";
@@ -17,9 +12,7 @@ import { formatDistanceToNow } from "date-fns";
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  return `${mins.toString().padStart(2, "0")}:${secs
-    .toString()
-    .padStart(2, "0")}`;
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
 interface Exercise {
@@ -117,45 +110,83 @@ export default function EmomSession() {
     }
   }, []);
 
-  // Helper: Always speak if available.
-  const speak = useCallback((text: string) => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.volume = 1.5;
-      window.speechSynthesis.speak(utterance);
-    }
+  // --- Load MP3 vocal cues ---
+  // (These remain for the other cues, if needed)
+  const [letsGoAudio, setLetsGoAudio] = useState<HTMLAudioElement | null>(null);
+  const [halfwayAudio, setHalfwayAudio] = useState<HTMLAudioElement | null>(null);
+  const [tenSecondsAudio, setTenSecondsAudio] = useState<HTMLAudioElement | null>(null);
+  const [lastRoundAudio, setLastRoundAudio] = useState<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const lg = new Audio("/letsgo.mp3");
+    lg.volume = 1.0;
+    lg.preload = "auto";
+    setLetsGoAudio(lg);
+
+    const hw = new Audio("/halfway.mp3");
+    hw.volume = 1.0;
+    hw.preload = "auto";
+    setHalfwayAudio(hw);
+
+    const ts = new Audio("/10s.mp3");
+    ts.volume = 1.0;
+    ts.preload = "auto";
+    setTenSecondsAudio(ts);
+
+    const lr = new Audio("/lastround.mp3");
+    lr.volume = 1.0;
+    lr.preload = "auto";
+    setLastRoundAudio(lr);
   }, []);
 
-  // Helper: Always play beep.
-  const beep = () => {
-    if (beepSound) {
-      beepSound.currentTime = 0;
-      const playPromise = beepSound.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          console.error("Error playing beep:", error);
-          setTimeout(() => {
-            beepSound.play().catch((e) => console.error("Retry error:", e));
-          }, 100);
-        });
-      }
+  // MP3 playback helper functions.
+  const playLetsGo = useCallback(() => {
+    if (letsGoAudio) {
+      letsGoAudio.currentTime = 0;
+      letsGoAudio.play().catch((error) =>
+        console.error("Error playing letsgo.mp3:", error)
+      );
     }
-  };
+  }, [letsGoAudio]);
+
+  const playHalfway = useCallback(() => {
+    if (halfwayAudio) {
+      halfwayAudio.currentTime = 0;
+      halfwayAudio.play().catch((error) =>
+        console.error("Error playing halfway.mp3:", error)
+      );
+    }
+  }, [halfwayAudio]);
+
+  const playTenSeconds = useCallback(() => {
+    if (tenSecondsAudio) {
+      tenSecondsAudio.currentTime = 0;
+      tenSecondsAudio.play().catch((error) =>
+        console.error("Error playing 10s.mp3:", error)
+      );
+    }
+  }, [tenSecondsAudio]);
+
+  const playLastRound = useCallback(() => {
+    if (lastRoundAudio) {
+      lastRoundAudio.currentTime = 0;
+      lastRoundAudio.play().catch((error) =>
+        console.error("Error playing lastround.mp3:", error)
+      );
+    }
+  }, [lastRoundAudio]);
 
   // Load and normalize the EMOM workout from localStorage.
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentEmomWorkout");
     if (savedWorkout) {
       let parsed = JSON.parse(savedWorkout) as EmomWorkout;
-      // Normalize the exercises field.
       parsed.exercises = normalizeExercises(parsed.exercises);
-      // Set defaults if necessary.
       if (!parsed.intervalTime) {
-        parsed.intervalTime = 30; // default 30 seconds
+        parsed.intervalTime = 30;
       }
       if (!parsed.roundsPerMovement) {
-        parsed.roundsPerMovement = 1; // default 1 round per movement
+        parsed.roundsPerMovement = 1;
       }
       setWorkout(parsed);
       setTimeRemaining(parsed.intervalTime);
@@ -171,15 +202,32 @@ export default function EmomSession() {
       timer = setInterval(() => {
         setTimeRemaining((prev) => {
           const newTime = prev - 1;
-          // At halfway through the interval, speak "Halfway".
-          if (newTime === Math.floor(workout.intervalTime / 2)) {
-            speak("Halfway");
-          }
-          // When 3 seconds remain, play the beep.
-          if (newTime === 3) {
-            beep();
-          }
           const totalRounds = workout.roundsPerMovement * workout.exercises.length;
+          
+          // Play last round audio at the start of the last round
+          if (currentRound === totalRounds && prev === workout.intervalTime) {
+            playLastRound();
+          }
+          
+          // At halfway through the interval, play halfway.mp3.
+          if (newTime === Math.floor(workout.intervalTime / 2)) {
+            playHalfway();
+          }
+          // When 10 seconds remain, play 10s.mp3.
+          if (newTime === 10) {
+            playTenSeconds();
+          }
+          // (Beep) When 3 seconds remain, play beep.mp3.
+          if (newTime === 3 && beepSound) {
+            beepSound.currentTime = 0;
+            beepSound.play().catch((error) => {
+              console.error("Error playing beep.mp3:", error);
+              setTimeout(() => {
+                beepSound.play().catch((e) => console.error("Retry error:", e));
+              }, 100);
+            });
+          }
+
           if (newTime <= 0) {
             if (currentRound >= totalRounds) {
               handleComplete();
@@ -188,7 +236,6 @@ export default function EmomSession() {
               setCurrentRound(currentRound + 1);
               const nextIdx = (currentExercise + 1) % workout.exercises.length;
               setCurrentExercise(nextIdx);
-              speak(`Next up: ${workout.exercises[nextIdx].name}`);
               return workout.intervalTime;
             }
           }
@@ -197,7 +244,16 @@ export default function EmomSession() {
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [isRunning, workout, currentRound, currentExercise, speak]);
+  }, [
+    isRunning,
+    workout,
+    currentRound,
+    currentExercise,
+    playHalfway,
+    playTenSeconds,
+    playLastRound,
+    beepSound,
+  ]);
 
   // Start/resume/pause the workout.
   const startOrToggleWorkout = () => {
@@ -217,16 +273,20 @@ export default function EmomSession() {
     setShowCountdown(false);
     setIsRunning(true);
     setIsPaused(false);
-    speak("Let's Go");
+    // Play letsgo.mp3 once at the very start.
+    playLetsGo();
   };
 
-  // End workout: stop timer, cancel speech, record completion, show summary.
+  // End workout: stop timer, record completion, show summary.
   const handleComplete = () => {
     setIsRunning(false);
     setIsPaused(true);
-    window.speechSynthesis.cancel();
+    // Cancel any pending speech (if any)
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
     setCompletedAt(new Date());
-    speak("Well Done");
+    playLastRound();
     setShowSummary(true);
   };
 
@@ -263,13 +323,17 @@ export default function EmomSession() {
 
         {/* Workout Name */}
         <div className="flex items-center justify-center mb-8">
-          <h1 className="text-3xl font-bold">{workout.name || "EMOM Workout"}</h1>
+          <h1 className="text-3xl font-bold">
+            {workout.name || "EMOM Workout"}
+          </h1>
         </div>
 
         {/* Timer & Round Info */}
         <div className="text-center mb-8">
           <div
-            className={`text-6xl font-mono font-bold mb-4 ${timeRemaining <= 3 ? "text-red-500" : ""}`}
+            className={`text-6xl font-mono font-bold mb-4 ${
+              timeRemaining <= 3 ? "text-red-500" : ""
+            }`}
           >
             {showCountdown ? (
               <WorkoutCountdown
@@ -284,7 +348,8 @@ export default function EmomSession() {
             )}
           </div>
           <div className="text-lg font-medium text-gray-600 mb-4">
-            Round {currentRound} of {workout.roundsPerMovement * workout.exercises.length}
+            Round {currentRound} of{" "}
+            {workout.roundsPerMovement * workout.exercises.length}
           </div>
           <div className="flex justify-center gap-4 items-center">
             <button
@@ -309,8 +374,8 @@ export default function EmomSession() {
         {/* Workout Details */}
         <div className="bg-white/50 rounded-lg border border-gray-200 p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">
-            Every {workout.intervalTime} seconds for {workout.roundsPerMovement} set
-            {workout.roundsPerMovement > 1 ? "s" : ""}:
+            Every {workout.intervalTime} seconds for {workout.roundsPerMovement}{" "}
+            set{workout.roundsPerMovement > 1 ? "s" : ""}:
           </h2>
           <div className="space-y-4">
             {workout.exercises.map((exercise) => (
@@ -319,9 +384,11 @@ export default function EmomSession() {
                 <p className="text-sm text-gray-500">
                   {exercise.metric === "reps" && exercise.reps !== undefined
                     ? `${exercise.reps} reps`
-                    : exercise.metric === "distance" && exercise.distance !== undefined
+                    : exercise.metric === "distance" &&
+                      exercise.distance !== undefined
                     ? `${exercise.distance} m`
-                    : exercise.metric === "calories" && exercise.calories !== undefined
+                    : exercise.metric === "calories" &&
+                      exercise.calories !== undefined
                     ? `${exercise.calories} cals`
                     : ""}
                   {exercise.weight !== undefined && exercise.weight !== 0

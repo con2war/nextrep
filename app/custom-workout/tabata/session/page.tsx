@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  Play,
-  Pause,
-  XCircle,
-  ChevronLeft,
-} from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Play, Pause, XCircle, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import WorkoutSummary from "@/app/components/WorkoutSummary";
 import WorkoutCountdown from "@/app/components/WorkoutCountdown";
 import { formatDistanceToNow } from "date-fns";
+
+// Helper function to format seconds as mm:ss.
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+};
 
 interface Exercise {
   id: string;
@@ -48,44 +50,43 @@ export default function TabataSession() {
   const [totalTime, setTotalTime] = useState(0);
   const [showCountdown, setShowCountdown] = useState(false);
   const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null);
-  // State to ensure "Halfway" is only spoken once per interval.
+  // This flag ensures that the halfway cue is only played once per interval.
   const [hasSpokenHalfway, setHasSpokenHalfway] = useState(false);
 
-  // Keep the screen awake using the Wake Lock API.
+  // --- Keep screen awake using Wake Lock API ---
   useEffect(() => {
     let wakeLock: any = null;
     const requestWakeLock = async () => {
-      try {
-        if ("wakeLock" in navigator) {
+      if ("wakeLock" in navigator) {
+        try {
           wakeLock = await (navigator as any).wakeLock.request("screen");
           console.log("Wake lock acquired");
           wakeLock.addEventListener("release", () => {
             console.log("Wake lock was released");
           });
+        } catch (err) {
+          console.error("Failed to acquire wake lock:", err);
         }
-      } catch (err) {
-        console.error("Failed to acquire wake lock:", err);
       }
     };
-
     requestWakeLock();
-
-    // Release the wake lock on cleanup.
     return () => {
       if (wakeLock) {
         wakeLock.release().then(() => {
           console.log("Wake lock released on cleanup");
+          wakeLock = null;
         });
       }
     };
   }, []);
+  // --- End Wake Lock API ---
 
-  // Load Tabata workout from localStorage on mount.
+  // Load TABATA workout from localStorage on mount.
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentTabataWorkout");
     if (savedWorkout) {
       let parsed = JSON.parse(savedWorkout) as TabataWorkout;
-      // Normalize each exercise to ensure numeric fields.
+      // Normalize each exercise numeric fields.
       parsed.exercises = parsed.exercises.map((ex: Exercise) => ({
         ...ex,
         reps: ex.reps ?? 0,
@@ -93,10 +94,9 @@ export default function TabataSession() {
         calories: ex.calories ?? 0,
       }));
       setWorkout(parsed);
-      // Start with the work interval.
       setTimeRemaining(parsed.workTime);
       setIsWorkInterval(true);
-      // Calculate total rounds (each exercise is done per round).
+      // Calculate total rounds (each round applies to each exercise).
       const total = parsed.rounds * parsed.exercises.length;
       setTotalTime((parsed.workTime + parsed.restTime) * total);
     } else {
@@ -104,7 +104,7 @@ export default function TabataSession() {
     }
   }, [router]);
 
-  // Initialize beep sound on mount.
+  // Initialize beep sound (beep.mp3) on mount.
   useEffect(() => {
     const audio = new Audio("/beep.mp3");
     audio.volume = 0.5;
@@ -113,34 +113,89 @@ export default function TabataSession() {
       audio.load();
       setBeepSound(audio);
     } catch (error) {
-      console.error("Error loading audio:", error);
+      console.error("Error loading beep.mp3:", error);
     }
   }, []);
 
-  // Always speak (and play beep) when needed.
-  const speak = (text: string) => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.volume = 1.5;
-      window.speechSynthesis.speak(utterance);
-    }
-  };
+  // --- Load Vocal Cue MP3s ---
+  const [letsGoAudio, setLetsGoAudio] = useState<HTMLAudioElement | null>(null);
+  const [workAudio, setWorkAudio] = useState<HTMLAudioElement | null>(null);
+  const [restAudio, setRestAudio] = useState<HTMLAudioElement | null>(null);
+  const [halfwayAudio, setHalfwayAudio] = useState<HTMLAudioElement | null>(null);
+  const [lastRoundAudio, setLastRoundAudio] = useState<HTMLAudioElement | null>(null);
 
-  const beep = () => {
-    if (beepSound) {
-      beepSound.currentTime = 0;
-      const playPromise = beepSound.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          console.error("Error playing beep:", error);
-          setTimeout(() => {
-            beepSound.play().catch((e) => console.error("Retry error:", e));
-          }, 100);
-        });
-      }
+  useEffect(() => {
+    const lg = new Audio("/letsgo.mp3");
+    lg.volume = 1.0;
+    lg.preload = "auto";
+    setLetsGoAudio(lg);
+
+    const wa = new Audio("/work.mp3");
+    wa.volume = 1.0;
+    wa.preload = "auto";
+    setWorkAudio(wa);
+
+    const ra = new Audio("/rest.mp3");
+    ra.volume = 1.0;
+    ra.preload = "auto";
+    setRestAudio(ra);
+
+    const ha = new Audio("/halfway.mp3");
+    ha.volume = 1.0;
+    ha.preload = "auto";
+    setHalfwayAudio(ha);
+
+    const lr = new Audio("/lastround.mp3");
+    lr.volume = 1.0;
+    lr.preload = "auto";
+    setLastRoundAudio(lr);
+  }, []);
+
+  // MP3 playback helper functions.
+  const playLetsGo = useCallback(() => {
+    if (letsGoAudio) {
+      letsGoAudio.currentTime = 0;
+      letsGoAudio.play().catch((error) =>
+        console.error("Error playing letsgo.mp3:", error)
+      );
     }
-  };
+  }, [letsGoAudio]);
+
+  const playWork = useCallback(() => {
+    if (workAudio) {
+      workAudio.currentTime = 0;
+      workAudio.play().catch((error) =>
+        console.error("Error playing work.mp3:", error)
+      );
+    }
+  }, [workAudio]);
+
+  const playRest = useCallback(() => {
+    if (restAudio) {
+      restAudio.currentTime = 0;
+      restAudio.play().catch((error) =>
+        console.error("Error playing rest.mp3:", error)
+      );
+    }
+  }, [restAudio]);
+
+  const playHalfway = useCallback(() => {
+    if (halfwayAudio) {
+      halfwayAudio.currentTime = 0;
+      halfwayAudio.play().catch((error) =>
+        console.error("Error playing halfway.mp3:", error)
+      );
+    }
+  }, [halfwayAudio]);
+
+  const playLastRound = useCallback(() => {
+    if (lastRoundAudio) {
+      lastRoundAudio.currentTime = 0;
+      lastRoundAudio.play().catch((error) =>
+        console.error("Error playing lastround.mp3:", error)
+      );
+    }
+  }, [lastRoundAudio]);
 
   // Timer effect: alternate work and rest intervals.
   useEffect(() => {
@@ -149,38 +204,52 @@ export default function TabataSession() {
       timer = setInterval(() => {
         setTimeRemaining((prevTime) => {
           const newTime = prevTime - 1;
-          // Determine current interval duration.
-          const currentIntervalDuration = isWorkInterval ? workout.workTime : workout.restTime;
-
-          // At halfway point (only once per interval).
+          const currentIntervalDuration = isWorkInterval
+            ? workout.workTime
+            : workout.restTime;
+          // At halfway point, play halfway.mp3 (only once per interval).
           if (!hasSpokenHalfway && newTime === Math.floor(currentIntervalDuration / 2)) {
-            speak("Halfway");
+            playHalfway();
             setHasSpokenHalfway(true);
           }
-          // At 3 seconds remaining, play beep.
-          if (newTime === 3) {
-            beep();
+          // At 3 seconds remaining, play beep.mp3.
+          if (newTime === 3 && beepSound) {
+            beepSound.currentTime = 0;
+            beepSound.play().catch((error) => {
+              console.error("Error playing beep.mp3:", error);
+              setTimeout(() => {
+                beepSound.play().catch((e) => console.error("Retry error:", e));
+              }, 100);
+            });
           }
           if (newTime <= 0) {
-            // Calculate total rounds: workout.rounds * number of exercises.
             const totalRounds = workout.rounds * workout.exercises.length;
+            
+            // Check if we're about to start the final round
+            if (currentRound === totalRounds - 1 && !isWorkInterval) {
+              playLastRound();
+            }
+            
             if (currentRound >= totalRounds) {
               handleComplete();
               return 0;
             }
-            // Reset halfway flag for next interval.
+            
+            // Reset halfway flag for next interval
             setHasSpokenHalfway(false);
-            // Switch intervals.
+            // Switch intervals
             if (isWorkInterval) {
-              speak("Rest");
+              // When a work interval ends, play the rest cue
+              playRest();
               setIsWorkInterval(false);
               return workout.restTime;
             } else {
+              // When a rest interval ends, move to next exercise
               const nextIndex = (currentExerciseIndex + 1) % workout.exercises.length;
               setCurrentExerciseIndex(nextIndex);
-              speak(`Next up: ${workout.exercises[nextIndex].name}`);
+              playWork();
               setIsWorkInterval(true);
-              setCurrentRound(currentRound + 1);
+              setCurrentRound((prev) => prev + 1);
               return workout.workTime;
             }
           }
@@ -189,25 +258,38 @@ export default function TabataSession() {
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [isRunning, isPaused, workout, currentRound, isWorkInterval, currentExerciseIndex, hasSpokenHalfway, speak]);
+  }, [
+    isRunning,
+    isPaused,
+    workout,
+    currentRound,
+    currentExerciseIndex,
+    hasSpokenHalfway,
+    playHalfway,
+    playRest,
+    playWork,
+    playLastRound,
+    beepSound,
+  ]);
 
   // Announce the first exercise and round on mount.
   useEffect(() => {
     if (workout && workout.exercises.length > 0) {
-      speak(`${workout.exercises[0].name}, Round 1`);
+      // Play the work cue for the first exercise.
+      playWork();
     }
-  }, [workout]);
+  }, [workout, playWork]);
 
   // Start/resume/pause the workout.
-  const startWorkout = () => {
-    if (isRunning) {
-      setIsRunning(false);
-      setIsPaused(true);
+  const startOrToggleWorkout = () => {
+    if (!isRunning && !isPaused) {
+      setShowCountdown(true);
     } else if (isPaused) {
       setIsRunning(true);
       setIsPaused(false);
     } else {
-      setShowCountdown(true);
+      setIsRunning(false);
+      setIsPaused(true);
     }
   };
 
@@ -216,16 +298,16 @@ export default function TabataSession() {
     setShowCountdown(false);
     setIsRunning(true);
     setIsPaused(false);
-    speak("Let's Go");
+    // Play the "Let's Go" cue only once at the start.
+    playLetsGo();
   };
 
-  // End workout: stop timer, cancel speech, record completion, show summary.
+  // End workout: stop timer, record completion, show summary.
   const handleComplete = () => {
     setIsRunning(false);
     setIsPaused(true);
-    window.speechSynthesis.cancel();
     setCompletedAt(new Date());
-    speak("Well Done");
+    // Play last round cue (already played in timer effect if final round).
     setShowSummary(true);
   };
 
@@ -233,20 +315,10 @@ export default function TabataSession() {
   const handleStartWorkout = () => {
     if (!workout) return;
     localStorage.setItem("selectedWorkout", JSON.stringify(workout));
-    router.push("/custom-workout/tabata/session");
-  };
-
-  // Format seconds as mm:ss.
-  const formatTimeDisplay = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    router.push("/custom-workout/emom/session");
   };
 
   if (!workout) return null;
-
-  const displayRound = Math.ceil(currentRound / 2);
-  const totalRounds = workout.rounds;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -265,8 +337,8 @@ export default function TabataSession() {
             onClick={handleComplete}
             className="flex items-center text-red-500 hover:text-red-600 transition-colors"
           >
+            <span>End Workout</span>
             <XCircle className="w-5 h-5 mr-1" />
-            End Workout
           </button>
         </div>
 
@@ -274,7 +346,7 @@ export default function TabataSession() {
 
         <div className="text-center mb-4">
           <span className="text-xl font-semibold text-gray-600">
-            Round {displayRound}/{totalRounds}
+            Round {Math.ceil(currentRound / workout.exercises.length)}/{workout.rounds}
           </span>
           <div className="text-lg text-gray-500 mt-1">
             {workout.exercises[currentExerciseIndex].name}
@@ -282,13 +354,21 @@ export default function TabataSession() {
         </div>
 
         <div className="text-center mb-4">
-          <span className={`text-xl font-bold ${isWorkInterval ? "text-green-500" : "text-red-500"}`}>
+          <span
+            className={`text-xl font-bold ${
+              isWorkInterval ? "text-green-500" : "text-red-500"
+            }`}
+          >
             {isWorkInterval ? "WORK" : "REST"}
           </span>
         </div>
 
         <div className="text-center mb-8">
-          <div className={`text-6xl font-mono font-bold mb-4 ${timeRemaining <= 3 ? "text-red-500" : ""}`}>
+          <div
+            className={`text-6xl font-mono font-bold mb-4 ${
+              timeRemaining <= 3 ? "text-red-500" : ""
+            }`}
+          >
             {showCountdown ? (
               <WorkoutCountdown
                 onComplete={handleCountdownComplete}
@@ -298,13 +378,13 @@ export default function TabataSession() {
                 }}
               />
             ) : (
-              formatTimeDisplay(timeRemaining)
+              formatTime(timeRemaining)
             )}
           </div>
           <div className="flex justify-center gap-4 items-center">
             <button
-              onClick={startWorkout}
-              className="px-6 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center gap-2"
+              onClick={startOrToggleWorkout}
+              className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
             >
               {isRunning ? (
                 <>
@@ -334,9 +414,13 @@ export default function TabataSession() {
               <div key={exercise.id}>
                 <p className="font-medium">{exercise.name}</p>
                 <p className="text-sm text-gray-500">
-                  {exercise.metric === "reps" && exercise.reps ? `${exercise.reps} reps` : ""}
-                  {exercise.metric === "distance" && exercise.distance ? `${exercise.distance} m` : ""}
-                  {exercise.metric === "calories" && exercise.calories ? `${exercise.calories} cals` : ""}
+                  {exercise.metric === "reps" && exercise.reps
+                    ? `${exercise.reps} reps`
+                    : exercise.metric === "distance" && exercise.distance
+                    ? `${exercise.distance} m`
+                    : exercise.metric === "calories" && exercise.calories
+                    ? `${exercise.calories} cals`
+                    : ""}
                   {exercise.weight ? ` (Weight: ${exercise.weight} kg)` : ""}
                 </p>
                 {exercise.notes && (
@@ -356,7 +440,7 @@ export default function TabataSession() {
                   isOpen={true}
                   onClose={() => setShowSummary(false)}
                   onSave={() => {}}
-                  onShare={async () => {}}
+                  onShare={() => {}}
                   workout={{
                     name: workout.name,
                     type: "TABATA",
