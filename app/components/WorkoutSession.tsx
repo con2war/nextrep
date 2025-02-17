@@ -13,12 +13,11 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import WorkoutSummary from "@/app/components/WorkoutSummary";
-import WorkoutCountdown from "@/app/components/WorkoutCountdown";
+import WorkoutSummary from "../components/WorkoutSummary";
+import WorkoutCountdown from "../components/WorkoutCountdown";
 
 interface Exercise {
   exercise: string;
-  name?: string;
   sets?: number;
   reps?: string | number;
   duration?: string;
@@ -73,7 +72,6 @@ export default function WorkoutSession({
 
   // Initialize exercises state from the workout prop.
   const [exercises, setExercises] = useState<ExercisesState>(() => {
-    // Use the provided workout object (or its "exercises" property) if available.
     const workoutExercises = workout.exercises || workout;
     return {
       warmup: (workoutExercises.warmup || []).map((ex: Exercise) => ({
@@ -113,12 +111,9 @@ export default function WorkoutSession({
     if (savedWorkout) {
       const parsedWorkout = JSON.parse(savedWorkout);
       console.log("WorkoutSession parsedWorkout:", parsedWorkout);
-      // If there's an "exercises" property, use it.
       if (parsedWorkout.exercises) {
         setExercises(parsedWorkout.exercises);
-      }
-      // Otherwise, if the top-level keys exist, combine them.
-      else if (
+      } else if (
         parsedWorkout.warmup ||
         parsedWorkout.mainWorkout ||
         parsedWorkout.cooldown
@@ -136,8 +131,6 @@ export default function WorkoutSession({
       router.push("/daily-workout");
     }
   }, [router]);
-
-  console.log("Exercises state in WorkoutSession:", exercises);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -175,38 +168,47 @@ export default function WorkoutSession({
     }));
   };
 
-  const speak = (text: string) => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      let voices = window.speechSynthesis.getVoices();
-      if (voices.length === 0) {
-        window.speechSynthesis.addEventListener("voiceschanged", () => {
-          voices = window.speechSynthesis.getVoices();
-        });
-      }
-      const preferredVoice = voices.find(
-        (voice) =>
-          (voice.name.includes("Male") ||
-            voice.name.includes("Daniel") ||
-            voice.name.includes("David") ||
-            voice.name.includes("James")) &&
-          (voice.lang.includes("en-US") || voice.lang.includes("en-GB"))
+  // --- Audio Cues ---
+  // Remove the speech synthesis-based speak() and load pre-recorded files instead.
+  const [letsgoAudio, setLetsgoAudio] = useState<HTMLAudioElement | null>(null);
+  const [welldoneAudio, setWelldoneAudio] = useState<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const lgAudio = new Audio("/letsgo.mp3");
+    lgAudio.volume = 1.0;
+    lgAudio.preload = "auto";
+    lgAudio.load();
+    setLetsgoAudio(lgAudio);
+
+    const wdAudio = new Audio("/welldone.mp3");
+    wdAudio.volume = 1.0;
+    wdAudio.preload = "auto";
+    wdAudio.load();
+    setWelldoneAudio(wdAudio);
+  }, []);
+
+  const playLetsGo = () => {
+    if (letsgoAudio && isAudioEnabled) {
+      letsgoAudio.currentTime = 0;
+      letsgoAudio.play().catch((err) =>
+        console.error("Error playing letsgo:", err)
       );
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
-      utterance.pitch = 1.1;
-      utterance.rate = 1.2;
-      utterance.volume = 1.5;
-      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const playWellDone = () => {
+    if (welldoneAudio && isAudioEnabled) {
+      welldoneAudio.currentTime = 0;
+      welldoneAudio.play().catch((err) =>
+        console.error("Error playing welldone:", err)
+      );
     }
   };
 
   const handleComplete = () => {
     setIsRunning(false);
     setCompletedAt(new Date());
-    speak("Well Done");
+    playWellDone();
     setShowSummary(true);
   };
 
@@ -228,7 +230,7 @@ export default function WorkoutSession({
   const handleShare = async () => {
     try {
       const shareData = {
-        title: workout.name || "Daily Workout",
+        title: workout?.name || "Daily Workout",
         text: `I completed my daily workout in ${formatTime(timer)}!`,
         url: window.location.href,
       };
@@ -265,7 +267,7 @@ export default function WorkoutSession({
             onClick={() => {
               setCompletedAt(new Date());
               setShowSummary(true);
-              speak("Well Done");
+              playWellDone();
             }}
             className="flex items-center text-red-500 hover:text-red-600 transition-colors"
           >
@@ -283,7 +285,7 @@ export default function WorkoutSession({
                   setShowCountdown(false);
                   setIsRunning(true);
                   setIsPaused(false);
-                  speak("Let's Go");
+                  playLetsGo();
                 }}
                 onStart={() => {
                   setIsRunning(false);
@@ -320,16 +322,14 @@ export default function WorkoutSession({
             </button>
             <button
               onClick={() => setIsAudioEnabled(!isAudioEnabled)}
-              className={`p-3 rounded-lg ${isAudioEnabled
+              className={`p-3 rounded-lg ${
+                isAudioEnabled
                   ? "bg-green-500 hover:bg-green-600"
                   : "bg-red-500 hover:bg-red-600"
-                } text-white transition-colors`}
+              } text-white transition-colors`}
+              title={isAudioEnabled ? "Disable Audio" : "Enable Audio"}
             >
-              {isAudioEnabled ? (
-                <Volume2 className="w-5 h-5" />
-              ) : (
-                <VolumeX className="w-5 h-5" />
-              )}
+              {isAudioEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
             </button>
           </div>
         </div>
@@ -339,9 +339,13 @@ export default function WorkoutSession({
           {Object.entries(exercises).map(([section, sectionExercises]) => (
             <section key={section}>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                {section === 'warmup' ? 'Warm Up' :
-                 section === 'mainWorkout' ? 'Main Workout' :
-                 section === 'cooldown' ? 'Cool Down' : ''}
+                {section === "warmup"
+                  ? "Warm Up"
+                  : section === "mainWorkout"
+                  ? "Main Workout"
+                  : section === "cooldown"
+                  ? "Cool Down"
+                  : ""}
               </h3>
               <div className="space-y-4">
                 {sectionExercises.map((exercise: Exercise, index: number) => (
@@ -352,7 +356,7 @@ export default function WorkoutSession({
                     <div className="p-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h4>{exercise.name || exercise.exercise || "Unnamed"}</h4>
+                          <h4>{ exercise.exercise || "Unnamed"}</h4>
                           <div className="flex flex-wrap gap-3 mt-2">
                             {exercise.sets && (
                               <span className="text-sm text-gray-600">
@@ -384,10 +388,11 @@ export default function WorkoutSession({
                         <div className="flex items-center gap-2">
                           {exercise.sets && (
                             <span
-                              className={`text-sm font-medium ${exercise.completed === exercise.sets
+                              className={`text-sm font-medium ${
+                                exercise.completed === exercise.sets
                                   ? "text-green-600"
                                   : "text-blue-600"
-                                }`}
+                              }`}
                             >
                               {exercise.completed || 0}/{exercise.sets}
                             </span>
@@ -399,16 +404,18 @@ export default function WorkoutSession({
                                 index
                               )
                             }
-                            className={`p-2 rounded-full transition-colors ${exercise.completed === exercise.sets
+                            className={`p-2 rounded-full transition-colors ${
+                              exercise.completed === exercise.sets
                                 ? "hover:bg-green-50"
                                 : "hover:bg-blue-50"
-                              }`}
+                            }`}
                           >
                             <CheckCircle
-                              className={`w-5 h-5 ${exercise.completed === exercise.sets
+                              className={`w-5 h-5 ${
+                                exercise.completed === exercise.sets
                                   ? "text-green-500 fill-green-500"
                                   : "text-gray-400"
-                                }`}
+                              }`}
                             />
                           </button>
                         </div>
@@ -464,13 +471,13 @@ export default function WorkoutSession({
             exercises: {
               warmup: exercises.warmup,
               mainWorkout: exercises.mainWorkout,
-              cooldown: exercises.cooldown
+              cooldown: exercises.cooldown,
             },
             warmup: exercises.warmup,
             mainWorkout: exercises.mainWorkout,
             cooldown: exercises.cooldown,
             difficulty: workout.difficulty || "medium",
-            targetMuscles: workout.targetMuscles || []
+            targetMuscles: workout.targetMuscles || [],
           }}
           duration={timer}
           completedAt={completedAt || new Date()}
@@ -479,4 +486,3 @@ export default function WorkoutSession({
     </div>
   );
 }
-

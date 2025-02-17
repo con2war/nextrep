@@ -11,6 +11,11 @@ import {
   Heart,
   Play,
   X,
+  Trophy,
+  Activity,
+  Target,
+  Flame,
+  BarChart2
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -23,7 +28,7 @@ const formatDuration = (seconds: number) => {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
 
-// Helper to normalize numeric fields in non-DAILY workouts’ exercises.
+// Helper to normalize numeric fields in non-DAILY workouts' exercises.
 const normalizeExercises = (exercisesInput: any): any[] => {
   let exercisesArray: any[] = [];
   if (typeof exercisesInput === "string") {
@@ -95,7 +100,65 @@ interface UserStats {
     difficulty: string;
     targetMuscles: string[];
   }[];
+  personalBests: {
+    longestWorkout: {
+      duration: string;
+      type: string;
+      date: string;
+    };
+    highestRated: {
+      rating: string;
+      type: string;
+      date: string;
+    };
+    longestStreak: number;
+  };
+  workoutsByType: Record<string, number>;
+  mostUsedMuscleGroups: {
+    muscle: string;
+    count: number;
+  }[];
+  weeklyActivity: {
+    week: string;
+    workouts: number;
+    minutes: number;
+  }[];
+  bestRatedWorkouts: {
+    type: string;
+    date: string;
+    rating: string;
+  }[];
 }
+
+// Helper function to format workout type
+const formatWorkoutName = (workout: SavedWorkout) => {
+  if (workout.name) return workout.name;
+  
+  // Format the workout type
+  switch (workout.type) {
+    case "FOR TIME":
+      return "For Time";
+    case "DAILY":
+      return "Daily Workout";
+    default:
+      return workout.type;
+  }
+};
+
+// Helper function to format duration string to minutes
+const formatDurationToMinutes = (duration: string) => {
+  // If duration is already in the format "X mins" or "X min", return as is
+  if (duration.includes('min')) return duration;
+  
+  // If duration is in seconds (number string)
+  const seconds = parseInt(duration);
+  if (!isNaN(seconds)) {
+    const minutes = Math.ceil(seconds / 60);
+    return `${minutes} ${minutes === 1 ? 'min' : 'mins'}`;
+  }
+  
+  return duration; // fallback to original string if format is unknown
+};
 
 export default function Profile() {
   const { user, error, isLoading } = useUser();
@@ -392,70 +455,118 @@ export default function Profile() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         {activeTab === "overview" ? (
           <>
-            {/* Stats Overview */}
-            <div className="grid grid-cols-2 gap-4 mb-8">
+            {/* Basic Stats Overview */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div className="p-4 rounded-lg border border-blue-100 bg-white">
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-5 h-5 text-blue-500" />
+                  <p className="text-sm text-gray-600">Total Workouts</p>
+                </div>
                 <p className="text-2xl font-bold text-blue-500">
                   {userStats?.totalWorkouts || 0}
                 </p>
-                <p className="text-sm text-gray-600">Workouts</p>
               </div>
               <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                <p className="text-2xl font-bold text-blue-500">
-                  {userStats?.currentStreak || 0}
+                <div className="flex items-center gap-2 mb-2">
+                  <Flame className="w-5 h-5 text-orange-500" />
+                  <p className="text-sm text-gray-600">Current Streak</p>
+                </div>
+                <p className="text-2xl font-bold text-orange-500">
+                  {userStats?.currentStreak || 0} days
                 </p>
-                <p className="text-sm text-gray-600">Day Streak</p>
               </div>
               <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                <p className="text-2xl font-bold text-blue-500">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-5 h-5 text-green-500" />
+                  <p className="text-sm text-gray-600">Total Minutes</p>
+                </div>
+                <p className="text-2xl font-bold text-green-500">
                   {userStats?.totalMinutes || 0}
                 </p>
-                <p className="text-sm text-gray-600">Total Minutes</p>
               </div>
               <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                <p className="text-2xl font-bold text-blue-500">
+                <div className="flex items-center gap-2 mb-2">
+                  <Star className="w-5 h-5 text-yellow-500" />
+                  <p className="text-sm text-gray-600">Avg. Rating</p>
+                </div>
+                <p className="text-2xl font-bold text-yellow-500">
                   {userStats?.averageRating || "0.0"}
                 </p>
-                <p className="text-sm text-gray-600">Avg. Rating</p>
               </div>
             </div>
 
-            {/* Recent Favorites */}
+            {/* Personal Bests */}
             <div className="mb-8">
-              <h3 className="text-lg font-medium text-gray-700 mb-4">
-                Recently Favourited
+              <h3 className="text-lg font-medium text-gray-700 mb-4 flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-yellow-500" />
+                Personal Bests
               </h3>
-              <div className="space-y-3">
-                {userStats?.recentWorkouts && userStats.recentWorkouts.length > 0 ? (
-                  userStats.recentWorkouts.map((workout, index) => (
-                    <div key={index} className="p-4 rounded-lg border border-blue-100 bg-white">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h4 className="font-medium text-gray-700">{workout.name}</h4>
-                          <p className="text-sm text-gray-500">{workout.date}</p>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <span className="text-sm text-gray-500">{workout.duration}</span>
-                          <span className="text-sm text-gray-500">{workout.difficulty}</span>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {workout.targetMuscles.map((muscle, i) => (
-                          <span
-                            key={i}
-                            className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-600"
-                          >
-                            {muscle}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-center text-gray-500 py-4">
-                    No favourited workouts yet
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 rounded-lg border border-blue-100 bg-white">
+                  <p className="text-sm text-gray-600 mb-1">Longest Workout</p>
+                  <p className="font-medium text-gray-900">
+                    {userStats?.personalBests.longestWorkout.duration || "N/A"}
                   </p>
-                )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    {userStats?.personalBests.longestWorkout.type} • {userStats?.personalBests.longestWorkout.date}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg border border-blue-100 bg-white">
+                  <p className="text-sm text-gray-600 mb-1">Highest Rated</p>
+                  <p className="font-medium text-gray-900">
+                    {userStats?.personalBests.highestRated.rating || "N/A"} / 5
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {userStats?.personalBests.highestRated.type} • {userStats?.personalBests.highestRated.date}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg border border-blue-100 bg-white">
+                  <p className="text-sm text-gray-600 mb-1">Longest Streak</p>
+                  <p className="font-medium text-gray-900">
+                    {userStats?.personalBests.longestStreak || 0} days
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Workout Distribution */}
+            <div className="mb-8">
+              <h3 className="text-lg font-medium text-gray-700 mb-4 flex items-center gap-2">
+                <BarChart2 className="w-5 h-5 text-blue-500" />
+                Workout Types
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {Object.entries(userStats?.workoutsByType || {}).map(([type, count]) => (
+                  <div key={type} className="p-4 rounded-lg border border-blue-100 bg-white">
+                    <p className="text-sm text-gray-600 mb-1">{type}</p>
+                    <p className="text-xl font-bold text-blue-500">{count}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Weekly Activity */}
+            <div className="mb-8">
+              <h3 className="text-lg font-medium text-gray-700 mb-4 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-green-500" />
+                Weekly Activity
+              </h3>
+              <div className="space-y-4">
+                {userStats?.weeklyActivity.map((week) => (
+                  <div key={week.week} className="p-4 rounded-lg border border-blue-100 bg-white">
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-sm text-gray-600">Week of {new Date(week.week).toLocaleDateString()}</p>
+                      <p className="text-sm font-medium text-gray-900">{week.workouts} workouts</p>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div 
+                        className="bg-green-500 h-2 rounded-full"
+                        style={{ width: `${Math.min((week.workouts / 7) * 100, 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">{week.minutes} minutes total</p>
+                  </div>
+                ))}
               </div>
             </div>
           </>
@@ -475,7 +586,7 @@ export default function Profile() {
                     <div className="flex justify-between items-center mb-2">
                       <div className="flex items-center gap-2">
                         <Dumbbell className="w-5 h-5 text-blue-500" />
-                        <span className="font-medium">{workout.name || workout.type}</span>
+                        <span className="font-medium">{formatWorkoutName(workout)}</span>
                       </div>
                       <span className="text-sm text-gray-500">
                         {formatDistanceToNow(new Date(workout.createdAt), {
@@ -483,13 +594,53 @@ export default function Profile() {
                         })}
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {workout.targetMuscles &&
-                        workout.targetMuscles.map((muscle, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-sm">
-                            {muscle}
-                          </span>
-                        ))}
+                    
+                    {/* Workout Type Specific Details */}
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Clock className="w-4 h-4" />
+                        <span>Duration: {formatDurationToMinutes(workout.duration)}</span>
+                      </div>
+                      
+                      {workout.type === "EMOM" && (
+                        <div className="text-sm text-gray-600">
+                          {workout.roundsPerMovement} rounds • {workout.intervalTime}s intervals
+                        </div>
+                      )}
+                      
+                      {workout.type === "TABATA" && (
+                        <div className="text-sm text-gray-600">
+                          {workout.rounds} rounds • {workout.workTime}s work • {workout.restTime}s rest
+                        </div>
+                      )}
+                      
+                      {workout.type === "AMRAP" && (
+                        <div className="text-sm text-gray-600">
+                          {workout.timeCap} minute time cap
+                        </div>
+                      )}
+                      
+                      {workout.type === "FOR TIME" && (
+                        <div className="text-sm text-gray-600">
+                          Complete for time
+                        </div>
+                      )}
+                      
+                      {workout.type === "DAILY" && (
+                        <div className="text-sm text-gray-600">
+                          {workout.exercises.warmup?.length || 0} warm up •{" "}
+                          {workout.exercises.mainWorkout?.length || 0} main •{" "}
+                          {workout.exercises.cooldown?.length || 0} cool down
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {workout.targetMuscles.map((muscle, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs">
+                          {muscle}
+                        </span>
+                      ))}
                     </div>
                   </div>
                   <button
@@ -529,7 +680,7 @@ export default function Profile() {
               <div className="space-y-4">
                 <div>
                   <h3 className="font-medium text-gray-900">
-                    {selectedWorkout.name || selectedWorkout.type}
+                    {formatWorkoutName(selectedWorkout)}
                   </h3>
                   <p className="text-sm text-gray-500">{selectedWorkout.type} Workout</p>
                   {selectedWorkout.difficulty && (

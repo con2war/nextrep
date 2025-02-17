@@ -1,106 +1,106 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef } from "react";
 
 interface WorkoutCountdownProps {
-    onComplete: () => void
-    onStart: () => void
+  onComplete: () => void;
+  onStart: () => void;
 }
 
 export default function WorkoutCountdown({ onComplete, onStart }: WorkoutCountdownProps) {
-    const [countdownTime, setCountdownTime] = useState<number>(10)
-    const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [countdownTime, setCountdownTime] = useState<number>(10);
+  const beepAudioRef = useRef<HTMLAudioElement | null>(null);
+  const getReadyAudioRef = useRef<HTMLAudioElement | null>(null);
 
-    // Initialize audio on component mount
-    useEffect(() => {
-        // Create audio element once
-        audioRef.current = new Audio('/beep.mp3')
-        audioRef.current.volume = 0.5
-        
-        // iOS requires user interaction before playing audio
-        // Preload the audio
-        if (audioRef.current) {
-            audioRef.current.load()
-        }
+  // Initialize beep.mp3 and getready.mp3 on component mount.
+  useEffect(() => {
+    // Beep audio for 3 seconds remaining.
+    const beepAudio = new Audio('/beep.mp3');
+    beepAudio.volume = 0.5;
+    beepAudio.preload = "auto";
+    beepAudio.load();
+    beepAudioRef.current = beepAudio;
 
-        // Cleanup
-        return () => {
-            if (audioRef.current) {
-                audioRef.current.pause()
-                audioRef.current = null
-            }
-        }
-    }, [])
+    // getready.mp3 for "Get ready" cue.
+    const getReadyAudio = new Audio('/getready.mp3');
+    getReadyAudio.volume = 1.0;
+    getReadyAudio.preload = "auto";
+    getReadyAudio.load();
+    getReadyAudioRef.current = getReadyAudio;
 
-    // Call onStart in a separate useEffect
-    useEffect(() => {
-        onStart()
-    }, [onStart])
+    return () => {
+      if (beepAudioRef.current) {
+        beepAudioRef.current.pause();
+        beepAudioRef.current = null;
+      }
+      if (getReadyAudioRef.current) {
+        getReadyAudioRef.current.pause();
+        getReadyAudioRef.current = null;
+      }
+    };
+  }, []);
 
-    // Speech synthesis function
-    const speak = (text: string) => {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel()
-            const utterance = new SpeechSynthesisUtterance(text)
-            utterance.volume = 1.5
-            window.speechSynthesis.speak(utterance)
-        }
+  // Call onStart immediately when the component mounts.
+  useEffect(() => {
+    onStart();
+  }, [onStart]);
+
+  // Beep function for playing beep.mp3.
+  const playBeep = () => {
+    if (beepAudioRef.current) {
+      beepAudioRef.current.currentTime = 0;
+      beepAudioRef.current.play().catch((error) => {
+        console.error("Error playing beep.mp3:", error);
+        setTimeout(() => {
+          beepAudioRef.current?.play().catch((e) => console.error("Retry error:", e));
+        }, 100);
+      });
+    }
+  };
+
+  // Function to play getready.mp3.
+  const playGetReady = () => {
+    if (getReadyAudioRef.current) {
+      getReadyAudioRef.current.currentTime = 0;
+      getReadyAudioRef.current.play().catch((error) => {
+        console.error("Error playing getready.mp3:", error);
+      });
+    }
+  };
+
+  // Countdown logic with one-time beep trigger.
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    let hasBeepPlayed = false;
+
+    if (countdownTime >= 0) {
+      interval = setInterval(() => {
+        setCountdownTime((prev) => {
+          // When timer is at 10, play getready.mp3 once.
+          if (prev === 8) {
+            playGetReady();
+          }
+          // At 3 seconds remaining, play beep.mp3 once.
+          if (prev === 3 && !hasBeepPlayed) {
+            playBeep();
+            hasBeepPlayed = true;
+          }
+          // When countdown reaches 0, call onComplete without any additional vocal cue.
+          if (prev === 0) {
+            onComplete();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     }
 
-    // Updated beep function for iOS compatibility
-    const beep = () => {
-        if (audioRef.current) {
-            // Reset audio to start
-            audioRef.current.currentTime = 0
-            
-            // Play with error handling
-            const playPromise = audioRef.current.play()
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.error('Error playing beep:', error)
-                })
-            }
-        }
-    }
+    return () => clearInterval(interval);
+  }, [countdownTime, onComplete]);
 
-    // Countdown logic with single beep trigger
-    useEffect(() => {
-        let interval: NodeJS.Timeout
-        let hasBeepPlayed = false
-
-        if (countdownTime >= 0) {
-            interval = setInterval(() => {
-                setCountdownTime(prev => {
-                    // Announce start of countdown
-                    if (prev === 10) {
-                        speak("Get ready")
-                    }
-
-                    // Play beep.mp3 once at exactly 3 seconds
-                    if (prev === 3 && !hasBeepPlayed) {
-                        window.speechSynthesis.cancel()
-                        beep()
-                        hasBeepPlayed = true
-                    }
-
-                    // Start workout when countdown reaches 0
-                    if (prev === 0) {
-                        speak("Begin")
-                        onComplete()
-                        return 0
-                    }
-
-                    return prev - 1
-                })
-            }, 1000)
-        }
-
-        return () => clearInterval(interval)
-    }, [countdownTime, onComplete])
-
-    return (
-        <div className={`text-6xl font-mono font-bold mb-4`}>
-            {countdownTime}
-        </div>
-    )
-} 
+  return (
+    <div className="text-6xl font-mono font-bold mb-4">
+      {countdownTime}
+    </div>
+  );
+}
