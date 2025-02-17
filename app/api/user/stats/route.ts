@@ -97,35 +97,60 @@ function calculateTotalMinutes(workouts: CompletedWorkout[]): number {
 export async function GET() {
   try {
     const session = await getSession()
+    console.log("Session:", session)
+
     if (!session?.user) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
     const userId = session.user.sub
+    console.log("Querying for userId:", userId)
 
-    // Get all completed workouts for the user
-    const completedWorkouts = await prisma.completedWorkout.findMany({
+    // Get favorite workouts with full workout details
+    const favoriteWorkouts = await prisma.favoriteWorkout.findMany({
       where: { userId },
-      orderBy: { completedAt: 'desc' },
       include: {
         workout: true,
       },
+      orderBy: { createdAt: 'desc' },
     })
+    console.log("Found favorite workouts:", favoriteWorkouts.length)
 
-    // Calculate all stats with error handling
-    const stats: WorkoutStats = {
-      totalWorkouts: completedWorkouts.length,
-      currentStreak: calculateCurrentStreak(completedWorkouts),
-      totalMinutes: calculateTotalMinutes(completedWorkouts),
-      averageRating: (completedWorkouts.reduce((sum, workout) => 
-        sum + (workout.rating || 0), 0) / completedWorkouts.length || 0).toFixed(1),
-      favoriteWorkouts: await prisma.favoriteWorkout.count({ where: { userId } }),
+    // Calculate total minutes properly from seconds
+    const totalMinutes = favoriteWorkouts.reduce((total, fav) => {
+      if (!fav.workout?.duration) return total;
       
-      // New stats calculations
-      workoutsByType: completedWorkouts.reduce((acc, workout) => ({
-        ...acc,
-        ...(isValidWorkoutType(workout.type) ? { [workout.type]: (acc[workout.type] || 0) + 1 } : {})
-      }), {
+      // If duration is in seconds (number string)
+      const seconds = parseInt(fav.workout.duration);
+      if (!isNaN(seconds)) {
+        return total + (seconds / 60); // Convert seconds to minutes
+      }
+      
+      // If duration is in "MM:SS" format
+      const [mins, secs] = fav.workout.duration.split(':').map(Number);
+      if (!isNaN(mins) && !isNaN(secs)) {
+        return total + mins + (secs / 60);
+      }
+      
+      return total;
+    }, 0);
+
+    // Calculate stats from favorite workouts
+    const stats: WorkoutStats = {
+      totalWorkouts: favoriteWorkouts.length,
+      currentStreak: 0, // We'll keep this at 0 since it's not applicable for favorites
+      totalMinutes: Math.round(totalMinutes), // Round to nearest minute
+      averageRating: "N/A", // Ratings are for completed workouts
+      favoriteWorkouts: favoriteWorkouts.length,
+      
+      // Workout type distribution
+      workoutsByType: favoriteWorkouts.reduce((acc, fav) => {
+        const type = fav.workout?.type || 'UNKNOWN';
+        if (isValidWorkoutType(type)) {
+          return { ...acc, [type]: (acc[type] || 0) + 1 };
+        }
+        return acc;
+      }, {
         DAILY: 0,
         AMRAP: 0,
         EMOM: 0,
@@ -133,9 +158,10 @@ export async function GET() {
         'FOR TIME': 0,
       }),
 
+      // Most used muscle groups from favorites
       mostUsedMuscleGroups: Object.entries(
-        completedWorkouts.reduce((acc, workout) => {
-          workout.workout?.targetMuscles?.forEach(muscle => {
+        favoriteWorkouts.reduce((acc, fav) => {
+          fav.workout?.targetMuscles?.forEach(muscle => {
             acc[muscle] = (acc[muscle] || 0) + 1;
           });
           return acc;
@@ -145,31 +171,25 @@ export async function GET() {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5),
 
-      bestRatedWorkouts: completedWorkouts
-        .filter(workout => workout.rating)
-        .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-        .slice(0, 3)
-        .map(workout => ({
-          type: workout.type,
-          rating: workout.rating || 0,
-          date: formatDate(workout.completedAt),
-        })),
-
-      weeklyActivity: calculateWeeklyActivity(completedWorkouts),
+      // We'll adapt these for favorites context
+      bestRatedWorkouts: [], // Not applicable for favorites
+      weeklyActivity: calculateWeeklyActivityFromFavorites(favoriteWorkouts),
 
       personalBests: {
-        longestWorkout: findLongestWorkout(completedWorkouts),
-        highestRated: findHighestRatedWorkout(completedWorkouts),
-        longestStreak: findLongestStreak(completedWorkouts),
+        longestWorkout: findLongestWorkoutFromFavorites(favoriteWorkouts),
+        highestRated: { rating: 0, date: '', type: '' }, // Not applicable
+        longestStreak: 0, // Not applicable
       },
     }
 
+    console.log("Final calculated stats:", stats)
     return NextResponse.json(stats)
   } catch (error: any) {
     console.error('Error in stats API:', error)
     return new NextResponse(JSON.stringify({ 
       error: 'Internal Server Error', 
-      details: error.message 
+      details: error.message,
+      stack: error.stack // Adding stack trace for debugging
     }), { 
       status: 500,
       headers: {
@@ -181,8 +201,8 @@ export async function GET() {
   }
 }
 
-// Helper functions for new calculations
-function calculateWeeklyActivity(workouts: CompletedWorkout[]) {
+// Helper function for weekly activity from favorites
+function calculateWeeklyActivityFromFavorites(favorites: any[]) {
   const weeks: { [key: string]: { workouts: number; minutes: number } } = {};
   const now = new Date();
   
@@ -194,17 +214,17 @@ function calculateWeeklyActivity(workouts: CompletedWorkout[]) {
     weeks[weekKey] = { workouts: 0, minutes: 0 };
   }
 
-  // Populate workout data
-  workouts.forEach(workout => {
-    const workoutDate = new Date(workout.completedAt);
-    const weekStart = new Date(workoutDate);
-    weekStart.setDate(workoutDate.getDate() - workoutDate.getDay());
+  // Populate favorite workout data
+  favorites.forEach(fav => {
+    const favDate = new Date(fav.createdAt);
+    const weekStart = new Date(favDate);
+    weekStart.setDate(favDate.getDate() - favDate.getDay());
     const weekKey = weekStart.toISOString().split('T')[0];
 
     if (weeks[weekKey]) {
       weeks[weekKey].workouts += 1;
-      if (workout.duration) {
-        const [mins, secs] = workout.duration.split(':').map(Number);
+      if (fav.workout?.duration) {
+        const [mins, secs] = fav.workout.duration.split(':').map(Number);
         weeks[weekKey].minutes += mins + (secs || 0) / 60;
       }
     }
@@ -217,19 +237,19 @@ function calculateWeeklyActivity(workouts: CompletedWorkout[]) {
   })).reverse();
 }
 
-function findLongestWorkout(workouts: CompletedWorkout[]) {
-  let longest = workouts.reduce((max, workout) => {
-    if (!workout.duration) return max;
+function findLongestWorkoutFromFavorites(favorites: any[]) {
+  const longest = favorites.reduce((max, fav) => {
+    if (!fav.workout?.duration) return max;
     
-    const [mins, secs] = workout.duration.split(':').map(Number);
+    const [mins, secs] = fav.workout.duration.split(':').map(Number);
     const totalMins = mins + (secs || 0) / 60;
     
     if (!max.duration || totalMins > max.durationMins) {
       return {
-        duration: workout.duration,
+        duration: fav.workout.duration,
         durationMins: totalMins,
-        date: workout.completedAt,
-        type: workout.type
+        date: fav.createdAt,
+        type: fav.workout.type
       };
     }
     return max;
@@ -240,55 +260,6 @@ function findLongestWorkout(workouts: CompletedWorkout[]) {
     date: formatDate(longest.date),
     type: longest.type
   };
-}
-
-function findHighestRatedWorkout(workouts: CompletedWorkout[]) {
-  const highest = workouts.reduce((max, workout) => {
-    if (!workout.rating) return max;
-    if (!max.rating || workout.rating > max.rating) {
-      return {
-        rating: workout.rating,
-        date: workout.completedAt,
-        type: workout.type
-      };
-    }
-    return max;
-  }, { rating: 0, date: new Date(), type: '' });
-
-  return {
-    rating: highest.rating,
-    date: formatDate(highest.date),
-    type: highest.type
-  };
-}
-
-function findLongestStreak(workouts: CompletedWorkout[]) {
-  if (workouts.length === 0) return 0;
-
-  let longestStreak = 0;
-  let currentStreak = 1;
-  const sortedWorkouts = [...workouts].sort((a, b) => 
-    new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-  );
-
-  for (let i = 1; i < sortedWorkouts.length; i++) {
-    const prevDate = new Date(sortedWorkouts[i - 1].completedAt);
-    const currDate = new Date(sortedWorkouts[i].completedAt);
-    
-    // Check if workouts were on consecutive days
-    const diffDays = Math.floor(
-      (prevDate.getTime() - currDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays === 1) {
-      currentStreak++;
-      longestStreak = Math.max(longestStreak, currentStreak);
-    } else {
-      currentStreak = 1;
-    }
-  }
-
-  return longestStreak;
 }
 
 function formatDate(date: Date | string) {
