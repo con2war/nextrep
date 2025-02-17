@@ -15,11 +15,13 @@ import {
   Activity,
   Target,
   Flame,
-  BarChart2
+  BarChart2,
+  ChevronDown
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
+import Link from "next/link";
 
 // Helper function to format a duration (in seconds) as mm:ss.
 const formatDuration = (seconds: number) => {
@@ -168,6 +170,8 @@ export default function Profile() {
   const [selectedWorkout, setSelectedWorkout] = useState<SavedWorkout | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [displayCount, setDisplayCount] = useState(5);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Fetch saved workouts and user stats when the user is logged in.
   useEffect(() => {
@@ -186,10 +190,10 @@ export default function Profile() {
       try {
         const response = await fetch("/api/user/stats");
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.details || "Failed to fetch stats");
+          throw new Error(`Failed to fetch stats: ${response.statusText}`);
         }
         const data = await response.json();
+        console.log("Fetched user stats:", data); // Debug log
         setUserStats(data);
       } catch (error) {
         console.error("Error fetching user stats:", error);
@@ -201,6 +205,9 @@ export default function Profile() {
       fetchUserStats();
     }
   }, [user]);
+
+  // Add debug log for render
+  console.log("Current userStats:", userStats);
 
   // Handler when a saved workout is clicked.
   const handleWorkoutClick = (workout: any) => {
@@ -456,75 +463,64 @@ export default function Profile() {
         {activeTab === "overview" ? (
           <>
             {/* Basic Stats Overview */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                <div className="flex items-center gap-2 mb-2">
-                  <Activity className="w-5 h-5 text-blue-500" />
-                  <p className="text-sm text-gray-600">Total Workouts</p>
-                </div>
-                <p className="text-2xl font-bold text-blue-500">
-                  {userStats?.totalWorkouts || 0}
-                </p>
-              </div>
-              <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                <div className="flex items-center gap-2 mb-2">
-                  <Flame className="w-5 h-5 text-orange-500" />
-                  <p className="text-sm text-gray-600">Current Streak</p>
-                </div>
-                <p className="text-2xl font-bold text-orange-500">
-                  {userStats?.currentStreak || 0} days
-                </p>
-              </div>
-              <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="w-5 h-5 text-green-500" />
-                  <p className="text-sm text-gray-600">Total Minutes</p>
-                </div>
-                <p className="text-2xl font-bold text-green-500">
-                  {userStats?.totalMinutes || 0}
-                </p>
-              </div>
-              <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                <div className="flex items-center gap-2 mb-2">
-                  <Star className="w-5 h-5 text-yellow-500" />
-                  <p className="text-sm text-gray-600">Avg. Rating</p>
-                </div>
-                <p className="text-2xl font-bold text-yellow-500">
-                  {userStats?.averageRating || "0.0"}
-                </p>
-              </div>
-            </div>
-
-            {/* Personal Bests */}
             <div className="mb-8">
-              <h3 className="text-lg font-medium text-gray-700 mb-4 flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-yellow-500" />
-                Personal Bests
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                  <p className="text-sm text-gray-600 mb-1">Longest Workout</p>
-                  <p className="font-medium text-gray-900">
-                    {userStats?.personalBests.longestWorkout.duration || "N/A"}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {userStats?.personalBests.longestWorkout.type} • {userStats?.personalBests.longestWorkout.date}
-                  </p>
+              {/* Streak Card */}
+              <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl p-8 mb-6 shadow-lg">
+                <div className="flex flex-col items-center text-white">
+                  <div className="bg-white/20 rounded-full p-4 mb-4">
+                    <Flame className="w-10 h-10" />
+                  </div>
+                  <h3 className="text-lg font-medium opacity-90 mb-1">Current Streak</h3>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-6xl font-bold">{userStats?.currentStreak ?? 0}</span>
+                    <span className="text-2xl opacity-90">days</span>
+                  </div>
+                  {(userStats?.currentStreak ?? 0) > 0 && (
+                    <p className="mt-2 text-sm opacity-75">
+                      Keep up the great work! 💪
+                    </p>
+                  )}
                 </div>
-                <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                  <p className="text-sm text-gray-600 mb-1">Highest Rated</p>
-                  <p className="font-medium text-gray-900">
-                    {userStats?.personalBests.highestRated.rating || "N/A"} / 5
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {userStats?.personalBests.highestRated.type} • {userStats?.personalBests.highestRated.date}
-                  </p>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Total Workouts Card */}
+                <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="bg-blue-100 rounded-full p-3">
+                      <Activity className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <span className="text-4xl font-bold text-blue-600">
+                      {userStats?.totalWorkouts || 0}
+                    </span>
+                  </div>
+                  <h3 className="text-gray-600 font-medium">Total Workouts</h3>
+                  <div className="mt-2 h-2 bg-blue-100 rounded-full">
+                    <div 
+                      className="h-2 bg-blue-600 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(((userStats?.totalWorkouts || 0) / 100) * 100, 100)}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="p-4 rounded-lg border border-blue-100 bg-white">
-                  <p className="text-sm text-gray-600 mb-1">Longest Streak</p>
-                  <p className="font-medium text-gray-900">
-                    {userStats?.personalBests.longestStreak || 0} days
-                  </p>
+
+                {/* Total Minutes Card */}
+                <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="bg-green-100 rounded-full p-3">
+                      <Clock className="w-6 h-6 text-green-600" />
+                    </div>
+                    <span className="text-4xl font-bold text-green-600">
+                      {Math.round(userStats?.totalMinutes || 0)}
+                    </span>
+                  </div>
+                  <h3 className="text-gray-600 font-medium">Total Minutes</h3>
+                  <div className="mt-2 h-2 bg-green-100 rounded-full">
+                    <div 
+                      className="h-2 bg-green-600 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(((userStats?.totalMinutes || 0) / 1000) * 100, 100)}%` }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -537,9 +533,28 @@ export default function Profile() {
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(userStats?.workoutsByType || {}).map(([type, count]) => (
-                  <div key={type} className="p-4 rounded-lg border border-blue-100 bg-white">
+                  <div key={type} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                     <p className="text-sm text-gray-600 mb-1">{type}</p>
                     <p className="text-xl font-bold text-blue-500">{count}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Most Used Muscle Groups */}
+            <div className="mb-8">
+              <h3 className="text-lg font-medium text-gray-700 mb-4 flex items-center gap-2">
+                <Target className="w-5 h-5 text-purple-500" />
+                Most Targeted Muscles
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {userStats?.mostUsedMuscleGroups.map((group, index) => (
+                  <div 
+                    key={group.muscle}
+                    className="px-4 py-2 rounded-xl bg-white shadow-sm border border-gray-100 flex items-center gap-2"
+                  >
+                    <span className="font-medium text-gray-900">{group.muscle}</span>
+                    <span className="text-sm text-gray-500">{group.count}x</span>
                   </div>
                 ))}
               </div>
@@ -553,7 +568,7 @@ export default function Profile() {
               </h3>
               <div className="space-y-4">
                 {userStats?.weeklyActivity.map((week) => (
-                  <div key={week.week} className="p-4 rounded-lg border border-blue-100 bg-white">
+                  <div key={week.week} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                     <div className="flex justify-between items-center mb-2">
                       <p className="text-sm text-gray-600">Week of {new Date(week.week).toLocaleDateString()}</p>
                       <p className="text-sm font-medium text-gray-900">{week.workouts} workouts</p>
@@ -577,85 +592,130 @@ export default function Profile() {
                 No saved workouts yet
               </div>
             ) : (
-              savedWorkouts.map((workout) => (
-                <div
-                  key={workout.id}
-                  className="relative w-full p-4 rounded-lg border border-gray-200 bg-white shadow-sm hover:border-blue-200 transition-colors group"
-                >
-                  <div onClick={() => handleWorkoutClick(workout)} className="cursor-pointer">
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="flex items-center gap-2">
-                        <Dumbbell className="w-5 h-5 text-blue-500" />
-                        <span className="font-medium">{formatWorkoutName(workout)}</span>
-                      </div>
-                      <span className="text-sm text-gray-500">
-                        {formatDistanceToNow(new Date(workout.createdAt), {
-                          addSuffix: true,
-                        })}
-                      </span>
-                    </div>
-                    
-                    {/* Workout Type Specific Details */}
-                    <div className="mt-2 space-y-1">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Clock className="w-4 h-4" />
-                        <span>Duration: {formatDurationToMinutes(workout.duration)}</span>
-                      </div>
-                      
-                      {workout.type === "EMOM" && (
-                        <div className="text-sm text-gray-600">
-                          {workout.roundsPerMovement} rounds • {workout.intervalTime}s intervals
-                        </div>
-                      )}
-                      
-                      {workout.type === "TABATA" && (
-                        <div className="text-sm text-gray-600">
-                          {workout.rounds} rounds • {workout.workTime}s work • {workout.restTime}s rest
-                        </div>
-                      )}
-                      
-                      {workout.type === "AMRAP" && (
-                        <div className="text-sm text-gray-600">
-                          {workout.timeCap} minute time cap
-                        </div>
-                      )}
-                      
-                      {workout.type === "FOR TIME" && (
-                        <div className="text-sm text-gray-600">
-                          Complete for time
-                        </div>
-                      )}
-                      
-                      {workout.type === "DAILY" && (
-                        <div className="text-sm text-gray-600">
-                          {workout.exercises.warmup?.length || 0} warm up •{" "}
-                          {workout.exercises.mainWorkout?.length || 0} main •{" "}
-                          {workout.exercises.cooldown?.length || 0} cool down
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {workout.targetMuscles.map((muscle, idx) => (
-                        <span key={idx} className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs">
-                          {muscle}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm("Are you sure you want to delete this workout?")) {
-                        handleDeleteWorkout(workout.id);
-                      }
-                    }}
-                    className="absolute top-2 right-2 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
+              savedWorkouts
+                .slice(0, displayCount)
+                .map((workout) => (
+                  <div
+                    key={workout.id}
+                    className="relative w-full p-4 rounded-lg border border-gray-200 bg-white shadow-sm hover:border-blue-200 transition-colors group"
                   >
-                    <X className="w-4 h-4 text-red-500" />
-                  </button>
-                </div>
-              ))
+                    <div onClick={() => handleWorkoutClick(workout)} className="cursor-pointer">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2">
+                          <Dumbbell className="w-5 h-5 text-blue-500" />
+                          <span className="font-medium">{formatWorkoutName(workout)}</span>
+                        </div>
+                        <span className="text-sm text-gray-500">
+                          {formatDistanceToNow(new Date(workout.createdAt), {
+                            addSuffix: true,
+                          })}
+                        </span>
+                      </div>
+                      
+                      {/* Workout Type Specific Details */}
+                      <div className="mt-2 space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Clock className="w-4 h-4" />
+                          <span>Duration: {formatDurationToMinutes(workout.duration)}</span>
+                        </div>
+                        
+                        {workout.type === "EMOM" && (
+                          <div className="text-sm text-gray-600">
+                            {workout.roundsPerMovement} rounds • {workout.intervalTime}s intervals
+                          </div>
+                        )}
+                        
+                        {workout.type === "TABATA" && (
+                          <div className="text-sm text-gray-600">
+                            {workout.rounds} rounds • {workout.workTime}s work • {workout.restTime}s rest
+                          </div>
+                        )}
+                        
+                        {workout.type === "AMRAP" && (
+                          <div className="text-sm text-gray-600">
+                            {workout.timeCap} minute time cap
+                          </div>
+                        )}
+                        
+                        {workout.type === "FOR TIME" && (
+                          <div className="text-sm text-gray-600">
+                            Complete for time
+                          </div>
+                        )}
+                        
+                        {workout.type === "DAILY" && (
+                          <div className="text-sm text-gray-600">
+                            {workout.exercises.warmup?.length || 0} warm up •{" "}
+                            {workout.exercises.mainWorkout?.length || 0} main •{" "}
+                            {workout.exercises.cooldown?.length || 0} cool down
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {workout.targetMuscles.map((muscle, idx) => (
+                          <span key={idx} className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs">
+                            {muscle}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm("Are you sure you want to delete this workout?")) {
+                          handleDeleteWorkout(workout.id);
+                        }
+                      }}
+                      className="absolute top-2 right-2 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
+                    >
+                      <X className="w-4 h-4 text-red-500" />
+                    </button>
+                  </div>
+                ))
+            )}
+
+            {/* Load More Button */}
+            {displayCount < savedWorkouts.length && (
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={async () => {
+                    setIsLoadingMore(true);
+                    // Simulate loading delay
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    setDisplayCount(prev => prev + 5);
+                    setIsLoadingMore(false);
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+                  disabled={isLoadingMore}
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      Load More
+                      <ChevronDown className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* No Favorites Message */}
+            {savedWorkouts.length === 0 && (
+              <div className="text-center py-8">
+                <p className="text-gray-600">No favorite workouts yet.</p>
+                <Link 
+                  href="/daily-workout" 
+                  className="inline-flex items-center gap-2 mt-2 text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Find workouts to favorite
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </div>
             )}
           </div>
         )}
