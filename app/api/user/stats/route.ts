@@ -1,6 +1,6 @@
 import { getSession } from '@auth0/nextjs-auth0'
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { FavoriteWorkout, PrismaClient } from '@prisma/client'
 
 // Initialize Prisma Client
 const prisma = new PrismaClient()
@@ -62,28 +62,60 @@ interface WorkoutStats {
 }
 
 // Add these helper functions before the GET handler
-function calculateCurrentStreak(workouts: CompletedWorkout[]): number {
-  if (workouts.length === 0) return 0;
-  
-  let streak = 0;
-  const today = new Date();
-  const sortedWorkouts = [...workouts].sort((a, b) => 
-    new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-  );
+function calculateCurrentStreak(favorites: FavoriteWorkout[]): number {
+  if (favorites.length === 0) return 0;
 
-  for (let i = 0; i < sortedWorkouts.length; i++) {
-    const workoutDate = new Date(sortedWorkouts[i].completedAt);
-    if (i === 0) {
-      const diffDays = Math.floor((today.getTime() - workoutDate.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays > 1) break;
-    } else {
-      const prevDate = new Date(sortedWorkouts[i - 1].completedAt);
-      const diffDays = Math.floor((prevDate.getTime() - workoutDate.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays > 1) break;
+  // Sort favorites by creation date (newest first)
+  const sortedFavorites = favorites
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+  let currentStreak = 0;
+  let currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+
+  // Check if there's a favorite today
+  const hasActivityToday = sortedFavorites.some(fav => {
+    const favDate = new Date(fav.createdAt);
+    favDate.setHours(0, 0, 0, 0);
+    return favDate.getTime() === currentDate.getTime();
+  });
+
+  if (!hasActivityToday) {
+    // If no activity today, check if there was activity yesterday to continue the streak
+    const yesterday = new Date(currentDate);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const hasActivityYesterday = sortedFavorites.some(fav => {
+      const favDate = new Date(fav.createdAt);
+      favDate.setHours(0, 0, 0, 0);
+      return favDate.getTime() === yesterday.getTime();
+    });
+
+    if (!hasActivityYesterday) {
+      return 0; // Streak is broken
     }
-    streak++;
   }
-  return streak;
+
+  // Count consecutive days
+  let checkDate = new Date(currentDate);
+  for (let i = 0; i < sortedFavorites.length; i++) {
+    const favDate = new Date(sortedFavorites[i].createdAt);
+    favDate.setHours(0, 0, 0, 0);
+
+    while (checkDate.getTime() >= favDate.getTime()) {
+      if (sortedFavorites.some(fav => {
+        const d = new Date(fav.createdAt);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime() === checkDate.getTime();
+      })) {
+        currentStreak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        return currentStreak;
+      }
+    }
+  }
+
+  return currentStreak;
 }
 
 function calculateTotalMinutes(workouts: CompletedWorkout[]): number {
@@ -138,7 +170,7 @@ export async function GET() {
     // Calculate stats from favorite workouts
     const stats: WorkoutStats = {
       totalWorkouts: favoriteWorkouts.length,
-      currentStreak: 0, // We'll keep this at 0 since it's not applicable for favorites
+      currentStreak: calculateCurrentStreak(favoriteWorkouts),
       totalMinutes: Math.round(totalMinutes), // Round to nearest minute
       averageRating: "N/A", // Ratings are for completed workouts
       favoriteWorkouts: favoriteWorkouts.length,
