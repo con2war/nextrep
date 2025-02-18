@@ -15,21 +15,9 @@ export async function GET() {
       skip_empty_lines: true
     })
 
-    // Transform the data to match our needs
-    const exercises = records.map((record: any) => ({
-      name: record.Title || '',
-      type: record.Type || '',
-      equipment: record.Equipment || '',
-      difficulty: record.Level || '',
-      muscle: record.BodyPart || '',
-      description: record.Desc || '',
-      rating: record.Rating || 0,
-      ratingDesc: record.RatingDesc || ''
-    }))
-
-    return NextResponse.json(exercises)
+    return NextResponse.json(records)
   } catch (error) {
-    console.error('API Error:', error)
+    console.error('Error reading exercises:', error)
     return NextResponse.json(
       { error: 'Failed to load exercises' }, 
       { status: 500 }
