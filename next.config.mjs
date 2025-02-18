@@ -12,7 +12,21 @@ const nextConfig = {
         ],
       },
     ]
-  }
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'www.bodybuilding.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.google.com',
+        pathname: '/**',
+      }
+    ],
+  },
 }
 
 export default nextConfig
