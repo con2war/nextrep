@@ -1,6 +1,6 @@
 "use client";
 
-import { Share2, Save, Home } from "lucide-react";
+import { Share2, Save, Home, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useUser } from "@auth0/nextjs-auth0/client";
@@ -135,7 +135,15 @@ export default function WorkoutSummary({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto relative">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
+          aria-label="Close summary"
+        >
+          <X className="w-5 h-5 text-gray-500" />
+        </button>
+
         <div className="p-6">
           <div className="mb-4">
             <h2 className="text-xl font-bold text-center">Workout Complete!</h2>

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { Dumbbell, Plus, Search, User, BicepsFlexed, BarChart2, Activity, Clock, Flame } from "lucide-react"
+import { Dumbbell, Plus, Search, User, BicepsFlexed, BarChart2, Activity, Clock, Flame, Calendar } from "lucide-react"
 import { useUser } from '@auth0/nextjs-auth0/client'
 import { useState, useEffect } from 'react'
 
@@ -48,45 +48,54 @@ export default function Home() {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 mb-12">
+        <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-3 lg:text-left">
           <Link
             href="/daily-workout"
-            className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/5 transition-all group"
+            className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
           >
-            <div className="flex items-center gap-4">
-              <Dumbbell className="w-6 h-6 text-blue-500" />
-              <div>
-                <h2 className="text-lg font-medium mb-1">Daily Workout</h2>
-                <p className="text-sm text-gray-400">Get your personalized workout</p>
-              </div>
-            </div>
-            <span className="text-gray-400 group-hover:text-blue-500 transition-colors">→</span>
+            <h2 className={`mb-3 text-2xl font-semibold`}>
+              <Calendar className="inline-block w-6 h-6 mr-2" />
+              Daily Workout{' '}
+              <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
+                -&gt;
+              </span>
+            </h2>
+            <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
+              Get your daily workout routine tailored just for you.
+            </p>
           </Link>
 
           <Link
             href="/custom-workout"
-            className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/5 transition-all group"
+            className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
           >
-            <div className="flex items-center gap-4">
-              <Plus className="w-6 h-6 text-blue-500" />
-              <div>
-                <h2 className="text-lg font-medium mb-1">Create Workout</h2>
-                <p className="text-sm text-gray-400">Design your own routine</p>
-              </div>
-            </div>
-            <span className="text-gray-400 group-hover:text-blue-500 transition-colors">→</span>
+            <h2 className={`mb-3 text-2xl font-semibold`}>
+              <Plus className="inline-block w-6 h-6 mr-2" />
+              Create Workout{' '}
+              <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
+                -&gt;
+              </span>
+            </h2>
+            <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
+              Create and customize your own workout routine.
+            </p>
           </Link>
 
-          <div className="flex items-center justify-between p-4 rounded-lg border border-gray-200 bg-gray-50 cursor-not-allowed opacity-60">
-            <div className="flex items-center gap-4">
-              <Search className="w-6 h-6 text-gray-400" />
-              <div>
-                <h2 className="text-lg font-medium mb-1">Discover</h2>
-                <p className="text-sm text-gray-400">Coming soon</p>
-              </div>
-            </div>
-            <span className="text-gray-400">→</span>
-          </div>
+          <Link
+            href="/exercises"
+            className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
+          >
+            <h2 className={`mb-3 text-2xl font-semibold`}>
+              <Dumbbell className="inline-block w-6 h-6 mr-2" />
+              Exercise Library{' '}
+              <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
+                -&gt;
+              </span>
+            </h2>
+            <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
+              Browse our comprehensive library of exercises.
+            </p>
+          </Link>
         </div>
 
         {/* Stats Section */}
