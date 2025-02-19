@@ -73,46 +73,37 @@ function calculateCurrentStreak(favorites: FavoriteWorkout[]): number {
   let currentDate = new Date();
   currentDate.setHours(0, 0, 0, 0);
 
-  // Check if there's a favorite today
+  // Check if there's a workout today
   const hasActivityToday = sortedFavorites.some(fav => {
     const favDate = new Date(fav.createdAt);
     favDate.setHours(0, 0, 0, 0);
     return favDate.getTime() === currentDate.getTime();
   });
 
+  // If no workout today, streak is already broken
   if (!hasActivityToday) {
-    // If no activity today, check if there was activity yesterday to continue the streak
-    const yesterday = new Date(currentDate);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const hasActivityYesterday = sortedFavorites.some(fav => {
-      const favDate = new Date(fav.createdAt);
-      favDate.setHours(0, 0, 0, 0);
-      return favDate.getTime() === yesterday.getTime();
-    });
-
-    if (!hasActivityYesterday) {
-      return 0; // Streak is broken
-    }
+    return 0;
   }
 
   // Count consecutive days
   let checkDate = new Date(currentDate);
-  for (let i = 0; i < sortedFavorites.length; i++) {
-    const favDate = new Date(sortedFavorites[i].createdAt);
-    favDate.setHours(0, 0, 0, 0);
+  currentStreak = 1; // We already know there's a workout today
 
-    while (checkDate.getTime() >= favDate.getTime()) {
-      if (sortedFavorites.some(fav => {
-        const d = new Date(fav.createdAt);
-        d.setHours(0, 0, 0, 0);
-        return d.getTime() === checkDate.getTime();
-      })) {
-        currentStreak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        return currentStreak;
-      }
+  // Check previous days
+  for (let i = 0; i < sortedFavorites.length; i++) {
+    checkDate.setDate(checkDate.getDate() - 1); // Move to previous day
+    
+    const hasWorkout = sortedFavorites.some(fav => {
+      const favDate = new Date(fav.createdAt);
+      favDate.setHours(0, 0, 0, 0);
+      return favDate.getTime() === checkDate.getTime();
+    });
+
+    if (!hasWorkout) {
+      break; // Break on first missed day
     }
+
+    currentStreak++;
   }
 
   return currentStreak;
