@@ -44,7 +44,10 @@ const normalizeExercises = (exercisesInput: any): any[] => {
   }
   return exercisesArray.map((ex: any) => ({
     ...ex,
-    reps: Number(ex.reps) || 0,
+    // If reps is a string that doesn't convert to a number, keep the string
+    reps: typeof ex.reps === "string" && isNaN(Number(ex.reps))
+      ? ex.reps
+      : Number(ex.reps) || 0,
     distance: Number(ex.distance) || 0,
     calories: Number(ex.calories) || 0,
     weight: Number(ex.weight) || 0,
@@ -55,12 +58,15 @@ const normalizeExercises = (exercisesInput: any): any[] => {
 const normalizeDailyExercises = (exercises: any[]): any[] => {
   return exercises.map((ex: any) => ({
     ...ex,
-    reps: Number(ex.reps) || 0,
+    reps: typeof ex.reps === "string" && isNaN(Number(ex.reps))
+      ? ex.reps
+      : Number(ex.reps) || 0,
     distance: Number(ex.distance) || 0,
     calories: Number(ex.calories) || 0,
     weight: Number(ex.weight) || 0,
   }));
 };
+
 
 //
 // Interface for a saved workout, including unique fields for different workout types.
