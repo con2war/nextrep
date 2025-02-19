@@ -36,15 +36,15 @@ export default function BottomNav() {
           </Link>
 
           <Link 
-            href="/discover" 
+            href="/exercises" 
             className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
-              pathname === "/discover" 
+              pathname === "/exercises" 
                 ? "text-blue-500" 
                 : "text-gray-400 hover:text-gray-300"
             }`}
           >
             <Search size={20} />
-            <span className="text-xs mt-1">Discover</span>
+            <span className="text-xs mt-1">Exercises</span>
           </Link>
 
           <Link 
