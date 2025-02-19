@@ -8,10 +8,10 @@ import { useRouter } from "next/navigation"
 interface Exercise {
   id: string
   name: string
-  reps?: number
+  reps?: string
   weight?: number
-  distance?: number
-  calories?: number
+  distance?: string
+  calories?: string
   notes?: string
   metric: 'reps' | 'distance' | 'calories'
 }
@@ -25,12 +25,16 @@ interface TabataWorkout {
 }
 
 interface GymExercise {
-  name: string
-  type: string
-  equipment: string
-  difficulty: string
-  muscle: string
-  description: string
+  Title: string
+  "Target Muscle Group": string
+  "Difficulty Level": string
+  "Prime Mover Muscle": string
+}
+
+interface ExerciseSuggestion {
+  name: string;
+  muscle: string;
+  difficulty: string;
 }
 
 export default function TabataWorkoutCreator() {
@@ -46,7 +50,7 @@ export default function TabataWorkoutCreator() {
   const [exercises, setExercises] = useState<GymExercise[]>([])
   const [currentExercise, setCurrentExercise] = useState("")
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [suggestions, setSuggestions] = useState<GymExercise[]>([])
+  const [suggestions, setSuggestions] = useState<ExerciseSuggestion[]>([])
   const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null)
 
   // Fetch exercises from API
@@ -57,31 +61,68 @@ export default function TabataWorkoutCreator() {
       .catch(error => console.error('Error fetching exercises:', error))
   }, [])
 
+  // Handle metric value changes
+  const handleMetricValueChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    exerciseId: string,
+    metric: 'reps' | 'distance' | 'calories'
+  ) => {
+    const val = e.target.value;
+    if (val === '' || !isNaN(Number(val))) {
+      updateExercise(exerciseId, { [metric]: val });
+    }
+  };
+
+  // Handle metric value blur
+  const handleMetricValueBlur = (
+    e: React.FocusEvent<HTMLInputElement>,
+    exerciseId: string,
+    metric: 'reps' | 'distance' | 'calories'
+  ) => {
+    const val = e.target.value;
+    if (val === "" || isNaN(Number(val))) {
+      updateExercise(exerciseId, { [metric]: "" });
+    } else {
+      updateExercise(exerciseId, { [metric]: val });
+    }
+  };
+
   // Handle exercise input and suggestions
   const handleExerciseInput = (value: string, exerciseId: string) => {
-    updateExercise(exerciseId, { name: value })
-    setCurrentExercise(value)
-    setCurrentExerciseId(exerciseId)
-
+    updateExercise(exerciseId, { name: value });
+    setCurrentExerciseId(exerciseId);
+    
     if (value.length >= 2) {
       const filtered = exercises
-        .filter(ex =>
-          ex.name.toLowerCase().includes(value.toLowerCase()) ||
-          ex.muscle.toLowerCase().includes(value.toLowerCase())
-        )
-        .slice(0, 3)
-      setSuggestions(filtered)
-      setShowSuggestions(filtered.length > 0)
-    } else {
-      setShowSuggestions(false)
-    }
-  }
+        .filter(ex => {
+          if (!ex || !ex.Title || !ex["Target Muscle Group"]) return false;
+          
+          return (
+            ex.Title.toLowerCase().includes(value.toLowerCase()) ||
+            ex["Target Muscle Group"].toLowerCase().includes(value.toLowerCase())
+          );
+        })
+        .slice(0, 3);
 
+      const mappedSuggestions = filtered.map(ex => ({
+        name: ex.Title,
+        muscle: ex["Target Muscle Group"],
+        difficulty: ex["Difficulty Level"]
+      }));
+
+      setSuggestions(mappedSuggestions);
+      setShowSuggestions(mappedSuggestions.length > 0);
+    } else {
+      setShowSuggestions(false);
+    }
+  };
+
+  // Handle suggestion click
   const handleSuggestionClick = (selectedName: string, exerciseId: string) => {
-    updateExercise(exerciseId, { name: selectedName })
-    setShowSuggestions(false)
-    setCurrentExerciseId(null)
-  }
+    updateExercise(exerciseId, { name: selectedName });
+    setShowSuggestions(false);
+    setCurrentExerciseId(null);
+  };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter' || event.key === 'Escape') {
@@ -274,8 +315,7 @@ export default function TabataWorkoutCreator() {
           {workout.exercises.map((exercise) => (
             <div key={exercise.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="flex items-center gap-4">
-                <span className="text-gray-500 font-medium"></span>
-                <div className="relative">
+                <div className="relative flex-1">
                   <input
                     type="text"
                     placeholder="Exercise name"
@@ -287,9 +327,7 @@ export default function TabataWorkoutCreator() {
                   />
                   
                   {showSuggestions && currentExerciseId === exercise.id && (
-                    <div 
-                      className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container"
-                    >
+                    <div className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container">
                       {suggestions.map((suggestion, idx) => (
                         <div
                           key={idx}
@@ -318,58 +356,47 @@ export default function TabataWorkoutCreator() {
                   <Trash2 className="w-5 h-5" />
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-4 mb-3">
+
+              {/* Exercise Details */}
+              <div className="grid grid-cols-2 gap-3 mt-3">
                 <select
                   value={exercise.metric}
                   onChange={(e) => handleMetricChange(e, exercise.id)}
-                  className="p-2 rounded border border-gray-200"
+                  className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white"
                 >
                   <option value="reps">Target Reps</option>
                   <option value="distance">Target Distance (m)</option>
                   <option value="calories">Target Calories</option>
                 </select>
                 <input
-                  type="number"
-                  min="0"
-                  placeholder={
-                    exercise.metric === 'reps'
-                      ? 'Target reps per interval'
-                      : exercise.metric === 'distance'
-                      ? 'Target distance per interval'
-                      : 'Target calories per interval'
-                  }
-                  value={
-                    exercise.metric === 'reps'
-                      ? exercise.reps || ''
-                      : exercise.metric === 'distance'
-                      ? exercise.distance || ''
-                      : exercise.calories || ''
-                  }
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value)
-                    updateExercise(exercise.id, {
-                      [exercise.metric]: value
-                    })
-                  }}
-                  className="w-full p-2 rounded border border-gray-200"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="Amount"
+                  value={exercise[exercise.metric] || ''}
+                  onChange={(e) => handleMetricValueChange(e, exercise.id, exercise.metric)}
+                  onBlur={(e) => handleMetricValueBlur(e, exercise.id, exercise.metric)}
+                  className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>
-              <div>
-                <label className="block text-sm text-gray-500 mb-1">Weight (kg) - Optional</label>
+
+              {/* Weight and Notes inputs */}
+              <div className="space-y-3 mt-3">
                 <input
                   type="number"
+                  placeholder="Weight (kg) - Optional"
                   value={exercise.weight || ''}
                   onChange={(e) => updateExercise(exercise.id, { weight: parseInt(e.target.value) || 0 })}
-                  className="w-full p-2 rounded border border-gray-200"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+                <input
+                  type="text"
+                  placeholder="Notes (optional)"
+                  value={exercise.notes || ''}
+                  onChange={(e) => updateExercise(exercise.id, { notes: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>
-              <input
-                type="text"
-                placeholder="Notes (optional)"
-                value={exercise.notes || ''}
-                onChange={(e) => updateExercise(exercise.id, { notes: e.target.value })}
-                className="w-full p-2 rounded border border-gray-200"
-              />
             </div>
           ))}
           

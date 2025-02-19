@@ -27,12 +27,10 @@ interface EmomWorkout {
 }
 
 interface GymExercise {
-  name: string;
-  type: string;
-  equipment: string;
-  difficulty: string;
-  muscle: string;
-  description: string;
+  Title: string;
+  "Target Muscle Group": string;
+  "Difficulty Level": string;
+  "Prime Mover Muscle": string;
 }
 
 export default function EmomWorkoutCreator() {
@@ -127,11 +125,18 @@ export default function EmomWorkoutCreator() {
     
     if (value.length >= 2) {
       const filtered = exercises
-        .filter(ex =>
-          ex.name.toLowerCase().includes(value.toLowerCase()) ||
-          ex.muscle.toLowerCase().includes(value.toLowerCase())
+        .filter(ex => 
+          ex.Title.toLowerCase().includes(value.toLowerCase()) ||
+          ex["Target Muscle Group"].toLowerCase().includes(value.toLowerCase())
         )
-        .slice(0, 3);
+        .slice(0, 3)
+        .map(ex => ({
+          Title: ex.Title,
+          "Target Muscle Group": ex["Target Muscle Group"],
+          "Difficulty Level": ex["Difficulty Level"],
+          "Prime Mover Muscle": ex["Prime Mover Muscle"]
+        }));
+
       setSuggestions(filtered);
       setShowSuggestions(filtered.length > 0);
     } else {
@@ -165,27 +170,30 @@ export default function EmomWorkoutCreator() {
     });
   };
 
-  // Allow the user to edit numeric metric fields as strings.
+  // Allow the user to edit numeric metric fields as strings
   const handleMetricValueChange = (
     e: React.ChangeEvent<HTMLInputElement>,
     exerciseId: string,
     metric: 'reps' | 'distance' | 'calories'
   ) => {
     const val = e.target.value;
-    updateExercise(exerciseId, { [metric]: val });
+    // Allow empty string or numeric values
+    if (val === '' || !isNaN(Number(val))) {
+      updateExercise(exerciseId, { [metric]: val });
+    }
   };
 
-  // On blur, if empty or invalid, set to 0.
+  // On blur, if empty or invalid, set to empty string
   const handleMetricValueBlur = (
     e: React.FocusEvent<HTMLInputElement>,
     exerciseId: string,
     metric: 'reps' | 'distance' | 'calories'
   ) => {
     const val = e.target.value;
-    if (val === "" || isNaN(parseInt(val))) {
-      updateExercise(exerciseId, { [metric]: 0 });
+    if (val === "" || isNaN(Number(val))) {
+      updateExercise(exerciseId, { [metric]: "" });
     } else {
-      updateExercise(exerciseId, { [metric]: parseInt(val) });
+      updateExercise(exerciseId, { [metric]: val });
     }
   };
 
@@ -335,22 +343,20 @@ export default function EmomWorkoutCreator() {
                   />
                   
                   {showSuggestions && currentExerciseId === exercise.id && (
-                    <div 
-                      className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container"
-                    >
+                    <div className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container">
                       {suggestions.map((suggestion, idx) => (
                         <div
                           key={idx}
-                          onClick={() => handleSuggestionClick(suggestion.name, exercise.id)}
+                          onClick={() => handleSuggestionClick(suggestion.Title, exercise.id)}
                           className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0 cursor-pointer"
                         >
-                          <div className="font-medium">{suggestion.name}</div>
+                          <div className="font-medium">{suggestion.Title}</div>
                           <div className="text-sm text-gray-500 flex items-center gap-2">
-                            <span>{suggestion.muscle}</span>
-                            {suggestion.difficulty && (
+                            <span>{suggestion["Target Muscle Group"]}</span>
+                            {suggestion["Difficulty Level"] && (
                               <>
                                 <span>•</span>
-                                <span>{suggestion.difficulty}</span>
+                                <span>{suggestion["Difficulty Level"]}</span>
                               </>
                             )}
                           </div>
@@ -372,10 +378,11 @@ export default function EmomWorkoutCreator() {
                     <option value="calories">Calories</option>
                   </select>
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="Amount"
-                    value={typeof exercise[exercise.metric] === 'number' ? exercise[exercise.metric] || '' : ''}
+                    value={exercise[exercise.metric] || ''}
                     onChange={(e) => handleMetricValueChange(e, exercise.id, exercise.metric)}
                     onBlur={(e) => handleMetricValueBlur(e, exercise.id, exercise.metric)}
                     className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"

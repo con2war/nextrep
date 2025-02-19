@@ -8,21 +8,19 @@ import { useRouter } from "next/navigation"
 interface Exercise {
   id: string
   name: string
-  reps?: number
+  reps?: string
   weight?: number
-  distance?: number
-  calories?: number
+  distance?: string
+  calories?: string
   notes?: string
   metric: 'reps' | 'distance' | 'calories'
 }
 
 interface GymExercise {
-    name: string
-    type: string
-    equipment: string
-    difficulty: string
-    muscle: string
-    description: string
+    Title: string
+    "Target Muscle Group": string
+    "Difficulty Level": string
+    "Prime Mover Muscle": string
 }
 
 interface AmrapWorkout {
@@ -30,6 +28,12 @@ interface AmrapWorkout {
     timeCap: number
     exercises: Exercise[]
     timer: number
+}
+
+interface ExerciseSuggestion {
+  name: string;
+  muscle: string;
+  difficulty: string;
 }
 
 export default function AmrapWorkout() {
@@ -44,7 +48,7 @@ export default function AmrapWorkout() {
   // Exercise suggestion states
   const [exercises, setExercises] = useState<GymExercise[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [suggestions, setSuggestions] = useState<GymExercise[]>([])
+  const [suggestions, setSuggestions] = useState<ExerciseSuggestion[]>([])
   const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null)
 
   const updateTimeCap = (value: string) => {
@@ -69,7 +73,7 @@ export default function AmrapWorkout() {
       exercises: [...workout.exercises, {
         id: Date.now().toString(),
         name: '',
-        reps: 10,
+        reps: '10',
         metric: 'reps'
       }]
     })
@@ -113,25 +117,61 @@ export default function AmrapWorkout() {
       .catch(error => console.error('Error fetching exercises:', error))
   }, [])
 
+  // Handle metric value changes
+  const handleMetricValueChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    exerciseId: string,
+    metric: 'reps' | 'distance' | 'calories'
+  ) => {
+    const val = e.target.value;
+    if (val === '' || !isNaN(Number(val))) {
+      updateExercise(exerciseId, { [metric]: val });
+    }
+  };
+
+  // Handle metric value blur
+  const handleMetricValueBlur = (
+    e: React.FocusEvent<HTMLInputElement>,
+    exerciseId: string,
+    metric: 'reps' | 'distance' | 'calories'
+  ) => {
+    const val = e.target.value;
+    if (val === "" || isNaN(Number(val))) {
+      updateExercise(exerciseId, { [metric]: "" });
+    } else {
+      updateExercise(exerciseId, { [metric]: val });
+    }
+  };
+
+  // Handle exercise input and suggestions
   const handleExerciseInput = (value: string, exerciseId: string) => {
-    // Update the exercise name as user types
-    updateExercise(exerciseId, { name: value })
-    setCurrentExerciseId(exerciseId)
+    updateExercise(exerciseId, { name: value });
+    setCurrentExerciseId(exerciseId);
     
-    // Show suggestions if we have 2 or more characters
     if (value.length >= 2) {
       const filtered = exercises
-        .filter(ex => 
-          ex.name.toLowerCase().includes(value.toLowerCase()) ||
-          ex.muscle.toLowerCase().includes(value.toLowerCase())
-        )
-        .slice(0, 3)
-      setSuggestions(filtered)
-      setShowSuggestions(filtered.length > 0)
+        .filter(ex => {
+          if (!ex || !ex.Title || !ex["Target Muscle Group"]) return false;
+          
+          return (
+            ex.Title.toLowerCase().includes(value.toLowerCase()) ||
+            ex["Target Muscle Group"].toLowerCase().includes(value.toLowerCase())
+          );
+        })
+        .slice(0, 3);
+
+      const mappedSuggestions = filtered.map(ex => ({
+        name: ex.Title,
+        muscle: ex["Target Muscle Group"],
+        difficulty: ex["Difficulty Level"]
+      }));
+
+      setSuggestions(mappedSuggestions);
+      setShowSuggestions(mappedSuggestions.length > 0);
     } else {
-      setShowSuggestions(false)
+      setShowSuggestions(false);
     }
-  }
+  };
 
   const handleSuggestionClick = (selectedName: string, exerciseId: string) => {
     console.log('Selecting exercise:', selectedName) // Debug log
@@ -267,9 +307,7 @@ export default function AmrapWorkout() {
                 />
                 
                 {showSuggestions && currentExerciseId === exercise.id && (
-                  <div 
-                    className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container"
-                  >
+                  <div className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container">
                     {suggestions.map((suggestion, idx) => (
                       <div
                         key={idx}
@@ -306,15 +344,13 @@ export default function AmrapWorkout() {
                   <option value="calories">Calories</option>
                 </select>
                 <input
-                  type="number"
-                  min="0"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   placeholder="Amount"
                   value={exercise[exercise.metric] || ''}
-                  onChange={(e) => {
-                    updateExercise(exercise.id, {
-                      [exercise.metric]: parseInt(e.target.value)
-                    })
-                  }}
+                  onChange={(e) => handleMetricValueChange(e, exercise.id, exercise.metric)}
+                  onBlur={(e) => handleMetricValueBlur(e, exercise.id, exercise.metric)}
                   className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>

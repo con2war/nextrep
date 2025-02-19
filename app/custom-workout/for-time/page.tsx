@@ -4,15 +4,14 @@ import { useState, useRef, useEffect } from "react"
 import { Plus, Play, Trash2, Save, ChevronLeft, Timer, X, Info } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import type { GymExercise } from "@/app/utils/exercises-loader"
 
 interface Exercise {
   id: string
   name: string
-  reps?: number
+  reps?: string
   weight?: number
-  distance?: number
-  calories?: number
+  distance?: string
+  calories?: string
   notes?: string
   metric: 'reps' | 'distance' | 'calories'
   difficulty?: string
@@ -27,6 +26,12 @@ interface ForTimeWorkout {
   exercises: Exercise[]
 }
 
+interface ExerciseSuggestion {
+  name: string;
+  muscle: string;
+  difficulty: string;
+}
+
 export default function ForTimeWorkout() {
   const router = useRouter()
   const [workout, setWorkout] = useState<ForTimeWorkout>({
@@ -36,9 +41,9 @@ export default function ForTimeWorkout() {
     exercises: []
   })
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [suggestions, setSuggestions] = useState<GymExercise[]>([])
+  const [suggestions, setSuggestions] = useState<ExerciseSuggestion[]>([])
   const [currentExerciseId, setCurrentExerciseId] = useState<string | null>(null)
-  const [exercises, setExercises] = useState<GymExercise[]>([])
+  const [exercises, setExercises] = useState<any[]>([])
   const suggestionRef = useRef<HTMLDivElement>(null)
   const [showPreview, setShowPreview] = useState(false)
 
@@ -50,23 +55,61 @@ export default function ForTimeWorkout() {
       .catch(error => console.error('Error loading exercises:', error))
   }, [])
 
-  const handleExerciseInput = (value: string, exerciseId: string) => {
-    setCurrentExerciseId(exerciseId)
-    updateExercise(exerciseId, { name: value })
+  // Handle metric value changes
+  const handleMetricValueChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    exerciseId: string,
+    metric: 'reps' | 'distance' | 'calories'
+  ) => {
+    const val = e.target.value;
+    if (val === '' || !isNaN(Number(val))) {
+      updateExercise(exerciseId, { [metric]: val });
+    }
+  };
 
+  // Handle metric value blur
+  const handleMetricValueBlur = (
+    e: React.FocusEvent<HTMLInputElement>,
+    exerciseId: string,
+    metric: 'reps' | 'distance' | 'calories'
+  ) => {
+    const val = e.target.value;
+    if (val === "" || isNaN(Number(val))) {
+      updateExercise(exerciseId, { [metric]: "" });
+    } else {
+      updateExercise(exerciseId, { [metric]: val });
+    }
+  };
+
+  // Handle exercise input and suggestions
+  const handleExerciseInput = (value: string, exerciseId: string) => {
+    updateExercise(exerciseId, { name: value });
+    setCurrentExerciseId(exerciseId);
+    
     if (value.length >= 2) {
       const filtered = exercises
-        .filter(ex =>
-          ex.name.toLowerCase().includes(value.toLowerCase()) ||
-          ex.muscle.toLowerCase().includes(value.toLowerCase())
-        )
-        .slice(0, 3)
-      setSuggestions(filtered)
-      setShowSuggestions(filtered.length > 0)
+        .filter(ex => {
+          if (!ex || !ex.Title || !ex["Target Muscle Group"]) return false;
+          
+          return (
+            ex.Title.toLowerCase().includes(value.toLowerCase()) ||
+            ex["Target Muscle Group"].toLowerCase().includes(value.toLowerCase())
+          );
+        })
+        .slice(0, 3);
+
+      const mappedSuggestions = filtered.map(ex => ({
+        name: ex.Title,
+        muscle: ex["Target Muscle Group"],
+        difficulty: ex["Difficulty Level"]
+      }));
+
+      setSuggestions(mappedSuggestions);
+      setShowSuggestions(mappedSuggestions.length > 0);
     } else {
-      setShowSuggestions(false)
+      setShowSuggestions(false);
     }
-  }
+  };
 
   // Handle keyboard event to hide suggestions
   const handleKeyDown = (event: React.KeyboardEvent, exerciseId: string) => {
@@ -83,8 +126,7 @@ export default function ForTimeWorkout() {
         {
           id: Date.now().toString(),
           name: '',
-          // Default metric is 'reps' with an initial value of 0.
-          reps: 0,
+          reps: '0',
           metric: 'reps'
         }
       ]
@@ -243,9 +285,7 @@ export default function ForTimeWorkout() {
                 />
                 
                 {showSuggestions && currentExerciseId === exercise.id && (
-                  <div 
-                    className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container"
-                  >
+                  <div className="absolute z-10 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg suggestions-container">
                     {suggestions.map((suggestion, idx) => (
                       <div
                         key={idx}
@@ -280,28 +320,13 @@ export default function ForTimeWorkout() {
                   <option value="calories">Calories</option>
                 </select>
                 <input
-                  type="number"
-                  min="0"
-                  placeholder={
-                    exercise.metric === 'reps'
-                      ? 'Target reps per interval'
-                      : exercise.metric === 'distance'
-                      ? 'Target distance per interval'
-                      : 'Target calories per interval'
-                  }
-                  value={
-                    exercise.metric === 'reps'
-                      ? exercise.reps || ''
-                      : exercise.metric === 'distance'
-                      ? exercise.distance || ''
-                      : exercise.calories || ''
-                  }
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value)
-                    updateExercise(exercise.id, {
-                      [exercise.metric]: value
-                    })
-                  }}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="Amount"
+                  value={exercise[exercise.metric] || ''}
+                  onChange={(e) => handleMetricValueChange(e, exercise.id, exercise.metric)}
+                  onBlur={(e) => handleMetricValueBlur(e, exercise.id, exercise.metric)}
                   className="px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>
