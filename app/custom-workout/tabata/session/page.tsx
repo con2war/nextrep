@@ -307,7 +307,6 @@ export default function TabataSession() {
     setIsRunning(false);
     setIsPaused(true);
     setCompletedAt(new Date());
-    // Play last round cue (already played in timer effect if final round).
     setShowSummary(true);
   };
 

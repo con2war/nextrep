@@ -205,7 +205,7 @@ export default function EmomSession() {
           const totalRounds = workout.roundsPerMovement * workout.exercises.length;
           
           // Play last round audio at the start of the last round
-          if (currentRound === totalRounds && prev === workout.intervalTime) {
+          if (currentRound === totalRounds -1 && prev === workout.intervalTime) {
             playLastRound();
           }
           
