@@ -203,16 +203,12 @@ export default function EmomSession() {
 
   const playBeep = useCallback(() => {
     if (!beepAudio) return;
-
-    // Create a new Audio instance each time
-    const newBeep = new Audio("/beep.mp3");
-    newBeep.volume = 1.0;
-    
-    newBeep.play().catch(error => {
+    beepAudio.currentTime = 0;
+    beepAudio.play().catch(error => {
       console.error("Error playing beep:", error);
     });
   }, [beepAudio]);
-
+  
   // Load and normalize the EMOM workout from localStorage.
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentEmomWorkout");
