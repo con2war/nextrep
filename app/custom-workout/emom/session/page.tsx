@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import WorkoutCountdown from "@/app/components/WorkoutCountdown";
 import WorkoutSummary from "@/app/components/WorkoutSummary";
-import { formatDistanceToNow } from "date-fns";
 
 // Helper function to format seconds as mm:ss.
 const formatTime = (seconds: number): string => {
@@ -68,7 +67,6 @@ export default function EmomSession() {
   const [showCountdown, setShowCountdown] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [completedAt, setCompletedAt] = useState<Date | null>(null);
-  const [beepAudio, setBeepAudio] = useState<HTMLAudioElement | null>(null);
 
   // --- Keep screen awake using Wake Lock API ---
   useEffect(() => {
@@ -95,52 +93,12 @@ export default function EmomSession() {
       }
     };
   }, []);
-  // --- End Wake Lock API ---
 
-  // Initialize beep sound on mount.
-  useEffect(() => {
-    // Create a new Audio instance for beep
-    const bp = new Audio("/beep.mp3");
-    bp.volume = 1.0;
-    bp.preload = "auto";
-
-    // iOS-specific setup for beep sound
-    const setupBeep = async () => {
-      try {
-        await bp.load();
-        // Create a touch event listener specifically for beep audio
-        document.addEventListener(
-          "touchstart",
-          () => {
-            bp.play()
-              .then(() => {
-                bp.pause();
-                bp.currentTime = 0;
-              })
-              .catch((e) => console.error("Beep setup failed:", e));
-          },
-          { once: true }
-        );
-      } catch (error) {
-        console.error("Beep setup failed:", error);
-      }
-    };
-
-    setupBeep();
-    setBeepAudio(bp);
-
-    // Cleanup
-    return () => {
-      bp.pause();
-      bp.src = "";
-    };
-  }, []);
-
-  // --- Load MP3 vocal cues (excluding beep, which is already initialized) ---
   const [letsGoAudio, setLetsGoAudio] = useState<HTMLAudioElement | null>(null);
   const [halfwayAudio, setHalfwayAudio] = useState<HTMLAudioElement | null>(null);
   const [tenSecondsAudio, setTenSecondsAudio] = useState<HTMLAudioElement | null>(null);
   const [lastRoundAudio, setLastRoundAudio] = useState<HTMLAudioElement | null>(null);
+  const [beepAudio, setBeepAudio] = useState<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const lg = new Audio("/letsgo.mp3");
@@ -163,7 +121,10 @@ export default function EmomSession() {
     lr.preload = "auto";
     setLastRoundAudio(lr);
 
-    // Do not reinitialize beepAudio here to preserve the iOS unlocked instance.
+    const bp = new Audio("/beep.mp3");
+    bp.volume = 1.0;
+    bp.preload = "auto";
+    setBeepAudio(bp);
 
     // Cleanup
     return () => {
@@ -171,6 +132,7 @@ export default function EmomSession() {
       hw.pause();
       ts.pause();
       lr.pause();
+      bp.pause();
     };
   }, []);
 
@@ -307,14 +269,19 @@ export default function EmomSession() {
     }
   };
 
-  // Callback when countdown completes.
-  const handleCountdownComplete = () => {
+  // Update the countdown handling in EmomSession
+  const handleCountdownStart = useCallback(() => {
+    setIsRunning(false);
+    setIsPaused(false);
+  }, []);
+
+  const handleCountdownComplete = useCallback(() => {
     setShowCountdown(false);
     setIsRunning(true);
     setIsPaused(false);
-    // Play letsgo.mp3 once at the very start.
+    // Play letsgo.mp3 once at the very start
     playLetsGo();
-  };
+  }, [playLetsGo]);
 
   // End workout: stop timer, record completion, show summary.
   const handleComplete = () => {
@@ -376,10 +343,7 @@ export default function EmomSession() {
             {showCountdown ? (
               <WorkoutCountdown
                 onComplete={handleCountdownComplete}
-                onStart={() => {
-                  setIsRunning(false);
-                  setIsPaused(false);
-                }}
+                onStart={handleCountdownStart}
               />
             ) : (
               formatTime(timeRemaining)
