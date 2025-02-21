@@ -100,13 +100,9 @@ export default function EmomSession() {
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [beepBuffer, setBeepBuffer] = useState<AudioBuffer | null>(null);
   const [halfwayBuffer, setHalfwayBuffer] = useState<AudioBuffer | null>(null);
-  const [tenSecondsBuffer, setTenSecondsBuffer] = useState<AudioBuffer | null>(
-    null
-  );
+  const [tenSecondsBuffer, setTenSecondsBuffer] = useState<AudioBuffer | null>(null);
   const [letsgoBuffer, setLetsgoBuffer] = useState<AudioBuffer | null>(null);
-  const [lastRoundBuffer, setLastRoundBuffer] = useState<AudioBuffer | null>(
-    null
-  );
+  const [welldoneBuffer, setWelldoneBuffer] = useState<AudioBuffer | null>(null);
 
   // Helper to load an AudioBuffer from a URL.
   const loadAudioBuffer = async (
@@ -130,19 +126,19 @@ export default function EmomSession() {
       const ctx = new AudioContextClass();
       setAudioContext(ctx);
       try {
-        const [beep, halfway, tenSeconds, letsgo, lastRound] =
+        const [beep, halfway, tenSeconds, letsgo, welldone] =
           await Promise.all([
             loadAudioBuffer(ctx, "/beep.mp3"),
             loadAudioBuffer(ctx, "/halfway.mp3"),
             loadAudioBuffer(ctx, "/10s.mp3"),
             loadAudioBuffer(ctx, "/letsgo.mp3"),
-            loadAudioBuffer(ctx, "/lastround.mp3"),
+            loadAudioBuffer(ctx, "/welldone.mp3"),
           ]);
         setBeepBuffer(beep);
         setHalfwayBuffer(halfway);
         setTenSecondsBuffer(tenSeconds);
         setLetsgoBuffer(letsgo);
-        setLastRoundBuffer(lastRound);
+        setWelldoneBuffer(welldone);
       } catch (error) {
         console.error("Error loading audio buffers:", error);
       }
@@ -196,16 +192,16 @@ export default function EmomSession() {
     }
   }, [audioContext, letsgoBuffer]);
 
-  const playLastRound = useCallback(() => {
-    if (audioContext && lastRoundBuffer) {
+  const playWellDone = useCallback(() => {
+    if (audioContext && welldoneBuffer) {
       const source = audioContext.createBufferSource();
-      source.buffer = lastRoundBuffer;
+      source.buffer = welldoneBuffer;
       source.connect(audioContext.destination);
       source.start(0);
     } else {
-      console.error("Audio context or last round buffer not ready");
+      console.error("Audio context or welldone buffer not ready");
     }
-  }, [audioContext, lastRoundBuffer]);
+  }, [audioContext, welldoneBuffer]);
 
   // Load and normalize the EMOM workout from localStorage.
   useEffect(() => {
@@ -236,19 +232,15 @@ export default function EmomSession() {
           const totalRounds =
             workout.roundsPerMovement * workout.exercises.length;
 
-          // Play last round audio at the start of the last round.
-          if (currentRound === totalRounds && prev === workout.intervalTime) {
-            playLastRound();
-          }
-          // At halfway through the interval, play halfway.mp3 via Web Audio API.
+          // At halfway through the interval, play halfway.mp3.
           if (newTime === Math.floor(workout.intervalTime / 2)) {
             playHalfway();
           }
-          // When 10 seconds remain, play 10s.mp3 via Web Audio API.
+          // When 10 seconds remain, play 10s.mp3.
           if (newTime === 10) {
             playTenSeconds();
           }
-          // When 3 seconds remain, play beep.mp3 via Web Audio API.
+          // When 3 seconds remain, play beep.mp3.
           if (newTime === 3) {
             playBeep();
           }
@@ -258,8 +250,7 @@ export default function EmomSession() {
               return 0;
             } else {
               setCurrentRound(currentRound + 1);
-              const nextIdx =
-                (currentExercise + 1) % workout.exercises.length;
+              const nextIdx = (currentExercise + 1) % workout.exercises.length;
               setCurrentExercise(nextIdx);
               return workout.intervalTime;
             }
@@ -276,7 +267,6 @@ export default function EmomSession() {
     currentExercise,
     playHalfway,
     playTenSeconds,
-    playLastRound,
     playBeep,
   ]);
 
@@ -312,7 +302,7 @@ export default function EmomSession() {
     });
   }, [playLetsgo]);
 
-  // End workout: stop timer, record completion, show summary.
+  // End workout: when the user clicks "End Workout" or all rounds complete, play welldone.mp3.
   const handleComplete = () => {
     setIsRunning(false);
     setIsPaused(true);
@@ -320,7 +310,7 @@ export default function EmomSession() {
       window.speechSynthesis.cancel();
     }
     setCompletedAt(new Date());
-    playLastRound();
+    playWellDone();
     setShowSummary(true);
   };
 

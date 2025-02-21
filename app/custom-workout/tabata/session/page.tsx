@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import WorkoutSummary from "@/app/components/WorkoutSummary";
 import WorkoutCountdown from "@/app/components/WorkoutCountdown";
-import { formatDistanceToNow } from "date-fns";
 
 // Helper function to format seconds as mm:ss.
 const formatTime = (seconds: number): string => {
@@ -49,13 +48,8 @@ export default function TabataSession() {
   const [completedAt, setCompletedAt] = useState<Date | null>(null);
   const [totalTime, setTotalTime] = useState(0);
   const [showCountdown, setShowCountdown] = useState(false);
-  const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null);
   // This flag ensures that the halfway cue is only played once per interval.
   const [hasSpokenHalfway, setHasSpokenHalfway] = useState(false);
-  const [beepAudio, setBeepAudio] = useState<HTMLAudioElement | null>(null);
-
-  // Add a ref to track if we're on iOS
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
   // --- Keep screen awake using Wake Lock API ---
   useEffect(() => {
@@ -85,7 +79,126 @@ export default function TabataSession() {
   }, []);
   // --- End Wake Lock API ---
 
-  // Load TABATA workout from localStorage on mount.
+  // Web Audio API states for all audio cues.
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [beepBuffer, setBeepBuffer] = useState<AudioBuffer | null>(null);
+  const [letsgoBuffer, setLetsgoBuffer] = useState<AudioBuffer | null>(null);
+  const [workBuffer, setWorkBuffer] = useState<AudioBuffer | null>(null);
+  const [restBuffer, setRestBuffer] = useState<AudioBuffer | null>(null);
+  const [halfwayBuffer, setHalfwayBuffer] = useState<AudioBuffer | null>(null);
+  const [lastRoundBuffer, setLastRoundBuffer] = useState<AudioBuffer | null>(null);
+
+  // Helper to load an AudioBuffer from a URL.
+  const loadAudioBuffer = async (
+    ctx: AudioContext,
+    url: string
+  ): Promise<AudioBuffer> => {
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    return await ctx.decodeAudioData(arrayBuffer);
+  };
+
+  // Initialize or resume the AudioContext and load all audio buffers.
+  const initAudioContext = useCallback(async () => {
+    if (!audioContext) {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) {
+        console.error("Web Audio API is not supported in this browser");
+        return;
+      }
+      const ctx = new AudioContextClass();
+      setAudioContext(ctx);
+      try {
+        const [beep, letsgo, work, rest, halfway, lastRound] = await Promise.all([
+          loadAudioBuffer(ctx, "/beep.mp3"),
+          loadAudioBuffer(ctx, "/letsgo.mp3"),
+          loadAudioBuffer(ctx, "/work.mp3"),
+          loadAudioBuffer(ctx, "/rest.mp3"),
+          loadAudioBuffer(ctx, "/halfway.mp3"),
+          loadAudioBuffer(ctx, "/lastround.mp3"),
+        ]);
+        setBeepBuffer(beep);
+        setLetsgoBuffer(letsgo);
+        setWorkBuffer(work);
+        setRestBuffer(rest);
+        setHalfwayBuffer(halfway);
+        setLastRoundBuffer(lastRound);
+      } catch (error) {
+        console.error("Error loading audio buffers:", error);
+      }
+    } else if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+  }, [audioContext]);
+
+  // Playback helper functions.
+  const playBeep = useCallback(() => {
+    if (audioContext && beepBuffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = beepBuffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    } else {
+      console.error("Audio context or beep buffer not ready");
+    }
+  }, [audioContext, beepBuffer]);
+
+  const playLetsgo = useCallback(() => {
+    if (audioContext && letsgoBuffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = letsgoBuffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    } else {
+      console.error("Audio context or let's go buffer not ready");
+    }
+  }, [audioContext, letsgoBuffer]);
+
+  const playWork = useCallback(() => {
+    if (audioContext && workBuffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = workBuffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    } else {
+      console.error("Audio context or work buffer not ready");
+    }
+  }, [audioContext, workBuffer]);
+
+  const playRest = useCallback(() => {
+    if (audioContext && restBuffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = restBuffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    } else {
+      console.error("Audio context or rest buffer not ready");
+    }
+  }, [audioContext, restBuffer]);
+
+  const playHalfway = useCallback(() => {
+    if (audioContext && halfwayBuffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = halfwayBuffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    } else {
+      console.error("Audio context or halfway buffer not ready");
+    }
+  }, [audioContext, halfwayBuffer]);
+
+  const playLastRound = useCallback(() => {
+    if (audioContext && lastRoundBuffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = lastRoundBuffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    } else {
+      console.error("Audio context or last round buffer not ready");
+    }
+  }, [audioContext, lastRoundBuffer]);
+
+  // Load the Tabata workout from localStorage.
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentTabataWorkout");
     if (savedWorkout) {
@@ -108,198 +221,28 @@ export default function TabataSession() {
     }
   }, [router]);
 
-  // Initialize beep sound (beep.mp3) on mount.
-  useEffect(() => {
-    // Pre-load multiple beep instances for iOS
-    if (isIOS) {
-      // Create an array of audio elements for iOS
-      const beepInstances = Array(5).fill(null).map(() => {
-        const beep = new Audio("/beep.mp3");
-        beep.volume = 1.0;
-        beep.preload = "auto";
-        return beep;
-      });
-
-      // iOS-specific setup for beep sounds
-      const setupBeeps = async () => {
-        try {
-          await Promise.all(beepInstances.map(beep => beep.load()));
-          
-          // Create a touch event listener for iOS audio unlock
-          document.addEventListener('touchstart', () => {
-            beepInstances[0].play().then(() => {
-              beepInstances[0].pause();
-              beepInstances[0].currentTime = 0;
-            }).catch(e => console.error("Beep setup failed:", e));
-          }, { once: true });
-
-          setBeepAudio(beepInstances[0]); // Store the first instance
-        } catch (error) {
-          console.error("Beep setup failed:", error);
-        }
-      };
-
-      setupBeeps();
-
-      // Cleanup
-      return () => {
-        beepInstances.forEach(beep => {
-          beep.pause();
-          beep.src = "";
-        });
-      };
-    } else {
-      // Non-iOS setup remains the same
-      const bp = new Audio("/beep.mp3");
-      bp.volume = 1.0;
-      bp.preload = "auto";
-      setBeepAudio(bp);
-
-      return () => {
-        bp.pause();
-        bp.src = "";
-      };
-    }
-  }, []);
-
-  // --- Load Vocal Cue MP3s ---
-  const [letsGoAudio, setLetsGoAudio] = useState<HTMLAudioElement | null>(null);
-  const [workAudio, setWorkAudio] = useState<HTMLAudioElement | null>(null);
-  const [restAudio, setRestAudio] = useState<HTMLAudioElement | null>(null);
-  const [halfwayAudio, setHalfwayAudio] = useState<HTMLAudioElement | null>(null);
-  const [lastRoundAudio, setLastRoundAudio] = useState<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    const lg = new Audio("/letsgo.mp3");
-    lg.volume = 1.0;
-    lg.preload = "auto";
-    setLetsGoAudio(lg);
-
-    const wa = new Audio("/work.mp3");
-    wa.volume = 1.0;
-    wa.preload = "auto";
-    setWorkAudio(wa);
-
-    const ra = new Audio("/rest.mp3");
-    ra.volume = 1.0;
-    ra.preload = "auto";
-    setRestAudio(ra);
-
-    const ha = new Audio("/halfway.mp3");
-    ha.volume = 1.0;
-    ha.preload = "auto";
-    setHalfwayAudio(ha);
-
-    const lr = new Audio("/lastround.mp3");
-    lr.volume = 1.0;
-    lr.preload = "auto";
-    setLastRoundAudio(lr);
-
-    const bp = new Audio("/beep.mp3");
-    bp.volume = 1.0;
-    bp.preload = "auto";
-    setBeepAudio(bp);
-  }, []);
-
-  // MP3 playback helper functions.
-  const playLetsGo = useCallback(() => {
-    if (letsGoAudio) {
-      letsGoAudio.currentTime = 0;
-      letsGoAudio.play().catch((error) =>
-        console.error("Error playing letsgo.mp3:", error)
-      );
-    }
-  }, [letsGoAudio]);
-
-  const playWork = useCallback(() => {
-    if (workAudio) {
-      workAudio.currentTime = 0;
-      workAudio.play().catch((error) =>
-        console.error("Error playing work.mp3:", error)
-      );
-    }
-  }, [workAudio]);
-
-  const playRest = useCallback(() => {
-    if (restAudio) {
-      restAudio.currentTime = 0;
-      restAudio.play().catch((error) =>
-        console.error("Error playing rest.mp3:", error)
-      );
-    }
-  }, [restAudio]);
-
-  const playHalfway = useCallback(() => {
-    if (halfwayAudio) {
-      halfwayAudio.currentTime = 0;
-      halfwayAudio.play().catch((error) =>
-        console.error("Error playing halfway.mp3:", error)
-      );
-    }
-  }, [halfwayAudio]);
-
-  const playLastRound = useCallback(() => {
-    if (lastRoundAudio) {
-      lastRoundAudio.currentTime = 0;
-      lastRoundAudio.play().catch((error) =>
-        console.error("Error playing lastround.mp3:", error)
-      );
-    }
-  }, [lastRoundAudio]);
-
-  // Enhanced playBeep function with iOS-specific handling
-  const playBeep = useCallback(() => {
-    if (isIOS) {
-      // For iOS, create a new Audio instance each time
-      const newBeep = new Audio("/beep.mp3");
-      newBeep.volume = 1.0;
-      
-      // Play immediately
-      const playPromise = newBeep.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          console.error("Error playing beep:", error);
-          // Fallback attempt
-          setTimeout(() => {
-            newBeep.play().catch(e => console.error("Retry beep failed:", e));
-          }, 50);
-        });
-      }
-    } else {
-      // Non-iOS handling
-      if (beepAudio) {
-        beepAudio.currentTime = 0;
-        beepAudio.play().catch(error => 
-          console.error("Error playing beep:", error)
-        );
-      }
-    }
-  }, [beepAudio]);
-
   // Timer effect: alternate work and rest intervals.
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isRunning && !isPaused && workout) {
       timer = setInterval(() => {
         setTimeRemaining((prevTime) => {
+          const currentIntervalDuration = isWorkInterval ? workout.workTime : workout.restTime;
           const newTime = prevTime - 1;
-          const currentIntervalDuration = isWorkInterval
-            ? workout.workTime
-            : workout.restTime;
           const totalRounds = workout.rounds * workout.exercises.length;
           
-          // Last round announcement
+          // Announce last round (if in work interval at the start of the interval)
           if (currentRound === totalRounds - 1 && isWorkInterval && prevTime === workout.workTime) {
             playLastRound();
           }
 
-          // Halfway point
+          // Halfway cue (only once per interval)
           if (!hasSpokenHalfway && newTime === Math.floor(currentIntervalDuration / 2)) {
             playHalfway();
             setHasSpokenHalfway(true);
           }
 
-          // Play beep at exactly 3 seconds remaining
+          // Beep cue at exactly 3 seconds remaining.
           if (newTime === 3) {
             playBeep();
           }
@@ -312,12 +255,11 @@ export default function TabataSession() {
               return workout.restTime;
             } else {
               if (currentExerciseIndex < workout.exercises.length - 1) {
-                setCurrentExerciseIndex(prev => prev + 1);
+                setCurrentExerciseIndex((prev) => prev + 1);
               } else {
                 setCurrentExerciseIndex(0);
-                setCurrentRound(prev => prev + 1);
+                setCurrentRound((prev) => prev + 1);
               }
-              
               if (currentRound < totalRounds) {
                 setIsWorkInterval(true);
                 playWork();
@@ -349,16 +291,17 @@ export default function TabataSession() {
     playBeep,
   ]);
 
-  // Announce the first exercise and round on mount.
+  // Announce the first work cue on mount.
   useEffect(() => {
     if (workout && workout.exercises.length > 0) {
-      // Play the work cue for the first exercise.
       playWork();
     }
   }, [workout, playWork]);
 
   // Start/resume/pause the workout.
-  const startOrToggleWorkout = () => {
+  const startOrToggleWorkout = useCallback(() => {
+    // Ensure AudioContext is unlocked.
+    initAudioContext();
     if (!isRunning && !isPaused) {
       setShowCountdown(true);
     } else if (isPaused) {
@@ -368,31 +311,30 @@ export default function TabataSession() {
       setIsRunning(false);
       setIsPaused(true);
     }
-  };
+  }, [isRunning, isPaused, initAudioContext]);
 
   // Callback when the countdown completes.
-  const handleCountdownComplete = () => {
+  const handleCountdownComplete = useCallback(() => {
     setShowCountdown(false);
     setIsRunning(true);
     setIsPaused(false);
-    // Play the "Let's Go" cue only once at the start.
-    playLetsGo();
-  };
+    playLetsgo();
+  }, [playLetsgo]);
 
-  // End workout: stop timer, record completion, show summary.
-  const handleComplete = () => {
+  // End workout: stop timer, record completion, and show summary.
+  const handleComplete = useCallback(() => {
     setIsRunning(false);
     setIsPaused(true);
     setCompletedAt(new Date());
     setShowSummary(true);
-  };
+  }, []);
 
   // When the user clicks "Start Workout" in the summary modal.
-  const handleStartWorkout = () => {
+  const handleStartWorkout = useCallback(() => {
     if (!workout) return;
     localStorage.setItem("selectedWorkout", JSON.stringify(workout));
-    router.push("/custom-workout/emom/session");
-  };
+    router.push("/custom-workout/tabata/session");
+  }, [workout, router]);
 
   if (!workout) return null;
 
