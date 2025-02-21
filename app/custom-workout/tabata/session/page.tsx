@@ -54,6 +54,9 @@ export default function TabataSession() {
   const [hasSpokenHalfway, setHasSpokenHalfway] = useState(false);
   const [beepAudio, setBeepAudio] = useState<HTMLAudioElement | null>(null);
 
+  // Add a ref to track if we're on iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
   // --- Keep screen awake using Wake Lock API ---
   useEffect(() => {
     let wakeLock: any = null;
@@ -107,14 +110,55 @@ export default function TabataSession() {
 
   // Initialize beep sound (beep.mp3) on mount.
   useEffect(() => {
-    const audio = new Audio("/beep.mp3");
-    audio.volume = 0.5;
-    audio.preload = "auto";
-    try {
-      audio.load();
-      setBeepSound(audio);
-    } catch (error) {
-      console.error("Error loading beep.mp3:", error);
+    // Pre-load multiple beep instances for iOS
+    if (isIOS) {
+      // Create an array of audio elements for iOS
+      const beepInstances = Array(5).fill(null).map(() => {
+        const beep = new Audio("/beep.mp3");
+        beep.volume = 1.0;
+        beep.preload = "auto";
+        return beep;
+      });
+
+      // iOS-specific setup for beep sounds
+      const setupBeeps = async () => {
+        try {
+          await Promise.all(beepInstances.map(beep => beep.load()));
+          
+          // Create a touch event listener for iOS audio unlock
+          document.addEventListener('touchstart', () => {
+            beepInstances[0].play().then(() => {
+              beepInstances[0].pause();
+              beepInstances[0].currentTime = 0;
+            }).catch(e => console.error("Beep setup failed:", e));
+          }, { once: true });
+
+          setBeepAudio(beepInstances[0]); // Store the first instance
+        } catch (error) {
+          console.error("Beep setup failed:", error);
+        }
+      };
+
+      setupBeeps();
+
+      // Cleanup
+      return () => {
+        beepInstances.forEach(beep => {
+          beep.pause();
+          beep.src = "";
+        });
+      };
+    } else {
+      // Non-iOS setup remains the same
+      const bp = new Audio("/beep.mp3");
+      bp.volume = 1.0;
+      bp.preload = "auto";
+      setBeepAudio(bp);
+
+      return () => {
+        bp.pause();
+        bp.src = "";
+      };
     }
   }, []);
 
@@ -203,12 +247,32 @@ export default function TabataSession() {
     }
   }, [lastRoundAudio]);
 
+  // Enhanced playBeep function with iOS-specific handling
   const playBeep = useCallback(() => {
-    if (beepAudio) {
-      beepAudio.currentTime = 0;
-      beepAudio.play().catch((error) =>
-        console.error("Error playing beep.mp3:", error)
-      );
+    if (isIOS) {
+      // For iOS, create a new Audio instance each time
+      const newBeep = new Audio("/beep.mp3");
+      newBeep.volume = 1.0;
+      
+      // Play immediately
+      const playPromise = newBeep.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error("Error playing beep:", error);
+          // Fallback attempt
+          setTimeout(() => {
+            newBeep.play().catch(e => console.error("Retry beep failed:", e));
+          }, 50);
+        });
+      }
+    } else {
+      // Non-iOS handling
+      if (beepAudio) {
+        beepAudio.currentTime = 0;
+        beepAudio.play().catch(error => 
+          console.error("Error playing beep:", error)
+        );
+      }
     }
   }, [beepAudio]);
 
@@ -235,9 +299,9 @@ export default function TabataSession() {
             setHasSpokenHalfway(true);
           }
 
-          // Play beep at 3 seconds remaining
+          // Play beep at exactly 3 seconds remaining
           if (newTime === 3) {
-            playBeep();
+            requestAnimationFrame(() => playBeep()); // Use requestAnimationFrame for more precise timing
           }
 
           if (newTime <= 0) {
