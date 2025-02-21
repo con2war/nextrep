@@ -224,7 +224,7 @@ export default function EmomSession() {
             playTenSeconds();
           }
           // When 3 seconds remain, play beep.mp3.
-          if (newTime === 3) {
+          if (newTime === 5) {
             playBeep();
           }
 
