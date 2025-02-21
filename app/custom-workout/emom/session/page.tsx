@@ -94,11 +94,11 @@ export default function EmomSession() {
     };
   }, []);
 
+  // Audio states for other sounds.
   const [letsGoAudio, setLetsGoAudio] = useState<HTMLAudioElement | null>(null);
   const [halfwayAudio, setHalfwayAudio] = useState<HTMLAudioElement | null>(null);
   const [tenSecondsAudio, setTenSecondsAudio] = useState<HTMLAudioElement | null>(null);
   const [lastRoundAudio, setLastRoundAudio] = useState<HTMLAudioElement | null>(null);
-  const [beepAudio, setBeepAudio] = useState<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const lg = new Audio("/letsgo.mp3");
@@ -121,18 +121,12 @@ export default function EmomSession() {
     lr.preload = "auto";
     setLastRoundAudio(lr);
 
-    const bp = new Audio("/beep.mp3");
-    bp.volume = 1.0;
-    bp.preload = "auto";
-    setBeepAudio(bp);
-
     // Cleanup
     return () => {
       lg.pause();
       hw.pause();
       ts.pause();
       lr.pause();
-      bp.pause();
     };
   }, []);
 
@@ -173,14 +167,14 @@ export default function EmomSession() {
     }
   }, [lastRoundAudio]);
 
+  // Updated playBeep function that creates a new Audio instance on each call.
   const playBeep = useCallback(() => {
-    if (beepAudio) {
-      beepAudio.currentTime = 0;
-      beepAudio.play().catch((error) =>
-        console.error("Error playing beep.mp3:", error)
-      );
-    }
-  }, [beepAudio]);
+    const beep = new Audio("/beep.mp3");
+    beep.volume = 1.0;
+    beep.play().catch((error) =>
+      console.error("Error playing beep.mp3:", error)
+    );
+  }, []);
 
   // Load and normalize the EMOM workout from localStorage.
   useEffect(() => {
@@ -224,7 +218,7 @@ export default function EmomSession() {
             playTenSeconds();
           }
           // When 3 seconds remain, play beep.mp3.
-          if (newTime === 5) {
+          if (newTime === 3) {
             playBeep();
           }
 
@@ -268,9 +262,8 @@ export default function EmomSession() {
     }
   }, [isRunning, isPaused]);
 
-  // Update the countdown handling in EmomSession
+  // Update the countdown handling in EmomSession.
   const handleCountdownStart = useCallback(() => {
-    // Move state updates to an effect
     requestAnimationFrame(() => {
       setIsRunning(false);
       setIsPaused(false);
@@ -278,7 +271,6 @@ export default function EmomSession() {
   }, []);
 
   const handleCountdownComplete = useCallback(() => {
-    // Move state updates to an effect
     requestAnimationFrame(() => {
       setShowCountdown(false);
       setIsRunning(true);
