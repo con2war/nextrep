@@ -121,7 +121,7 @@ export default function EmomSession() {
     lr.preload = "auto";
     setLastRoundAudio(lr);
 
-    // Cleanup
+    // Cleanup on unmount.
     return () => {
       lg.pause();
       hw.pause();
@@ -130,7 +130,34 @@ export default function EmomSession() {
     };
   }, []);
 
-  // MP3 playback helper functions.
+  // Web Audio API: AudioContext and beep buffer.
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [beepBuffer, setBeepBuffer] = useState<AudioBuffer | null>(null);
+
+  // Initialize or resume the AudioContext and load beep.mp3.
+  const initAudioContext = useCallback(async () => {
+    if (!audioContext) {
+      const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+      if (!AudioContextClass) {
+        console.error("Web Audio API is not supported in this browser");
+        return;
+      }
+      const ctx = new AudioContextClass();
+      setAudioContext(ctx);
+      try {
+        const response = await fetch("/beep.mp3");
+        const arrayBuffer = await response.arrayBuffer();
+        const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
+        setBeepBuffer(decodedBuffer);
+      } catch (error) {
+        console.error("Error loading beep audio:", error);
+      }
+    } else if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+  }, [audioContext]);
+
+  // MP3 playback helper functions for other audios.
   const playLetsGo = useCallback(() => {
     if (letsGoAudio) {
       letsGoAudio.currentTime = 0;
@@ -167,14 +194,17 @@ export default function EmomSession() {
     }
   }, [lastRoundAudio]);
 
-  // Updated playBeep function that creates a new Audio instance on each call.
+  // Updated playBeep function using the Web Audio API.
   const playBeep = useCallback(() => {
-    const beep = new Audio("/beep.mp3");
-    beep.volume = 1.0;
-    beep.play().catch((error) =>
-      console.error("Error playing beep.mp3:", error)
-    );
-  }, []);
+    if (audioContext && beepBuffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = beepBuffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    } else {
+      console.error("Audio context or beep buffer not ready");
+    }
+  }, [audioContext, beepBuffer]);
 
   // Load and normalize the EMOM workout from localStorage.
   useEffect(() => {
@@ -204,11 +234,10 @@ export default function EmomSession() {
           const newTime = prev - 1;
           const totalRounds = workout.roundsPerMovement * workout.exercises.length;
 
-          // Play last round audio at the start of the last round
+          // Play last round audio at the start of the last round.
           if (currentRound === totalRounds && prev === workout.intervalTime) {
             playLastRound();
           }
-
           // At halfway through the interval, play halfway.mp3.
           if (newTime === Math.floor(workout.intervalTime / 2)) {
             playHalfway();
@@ -221,7 +250,6 @@ export default function EmomSession() {
           if (newTime === 3) {
             playBeep();
           }
-
           if (newTime <= 0) {
             if (currentRound >= totalRounds) {
               handleComplete();
@@ -250,7 +278,9 @@ export default function EmomSession() {
   ]);
 
   // Start/resume/pause the workout.
+  // Also initialize/resume the AudioContext to ensure it’s unlocked for iOS.
   const startOrToggleWorkout = useCallback(() => {
+    initAudioContext(); // Ensure AudioContext is active.
     if (!isRunning && !isPaused) {
       setShowCountdown(true);
     } else if (isPaused) {
@@ -260,7 +290,7 @@ export default function EmomSession() {
       setIsRunning(false);
       setIsPaused(true);
     }
-  }, [isRunning, isPaused]);
+  }, [isRunning, isPaused, initAudioContext]);
 
   // Update the countdown handling in EmomSession.
   const handleCountdownStart = useCallback(() => {
