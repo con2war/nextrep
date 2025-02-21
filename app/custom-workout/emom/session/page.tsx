@@ -109,12 +109,18 @@ export default function EmomSession() {
       try {
         await bp.load();
         // Create a touch event listener specifically for beep audio
-        document.addEventListener('touchstart', () => {
-          bp.play().then(() => {
-            bp.pause();
-            bp.currentTime = 0;
-          }).catch(e => console.error("Beep setup failed:", e));
-        }, { once: true });
+        document.addEventListener(
+          "touchstart",
+          () => {
+            bp.play()
+              .then(() => {
+                bp.pause();
+                bp.currentTime = 0;
+              })
+              .catch((e) => console.error("Beep setup failed:", e));
+          },
+          { once: true }
+        );
       } catch (error) {
         console.error("Beep setup failed:", error);
       }
@@ -130,6 +136,7 @@ export default function EmomSession() {
     };
   }, []);
 
+  // --- Load MP3 vocal cues (excluding beep, which is already initialized) ---
   const [letsGoAudio, setLetsGoAudio] = useState<HTMLAudioElement | null>(null);
   const [halfwayAudio, setHalfwayAudio] = useState<HTMLAudioElement | null>(null);
   const [tenSecondsAudio, setTenSecondsAudio] = useState<HTMLAudioElement | null>(null);
@@ -156,10 +163,7 @@ export default function EmomSession() {
     lr.preload = "auto";
     setLastRoundAudio(lr);
 
-    const bp = new Audio("/beep.mp3");
-    bp.volume = 1.0;
-    bp.preload = "auto";
-    setBeepAudio(bp);
+    // Do not reinitialize beepAudio here to preserve the iOS unlocked instance.
 
     // Cleanup
     return () => {
@@ -167,7 +171,6 @@ export default function EmomSession() {
       hw.pause();
       ts.pause();
       lr.pause();
-      bp.pause();
     };
   }, []);
 
@@ -210,6 +213,7 @@ export default function EmomSession() {
 
   const playBeep = useCallback(() => {
     if (beepAudio) {
+      // Reuse the preloaded beepAudio instance
       beepAudio.currentTime = 0;
       beepAudio.play().catch((error) =>
         console.error("Error playing beep.mp3:", error)
@@ -244,12 +248,12 @@ export default function EmomSession() {
         setTimeRemaining((prev) => {
           const newTime = prev - 1;
           const totalRounds = workout.roundsPerMovement * workout.exercises.length;
-          
+
           // Play last round audio at the start of the last round
-          if (currentRound === totalRounds -1 && prev === workout.intervalTime) {
+          if (currentRound === totalRounds - 1 && prev === workout.intervalTime) {
             playLastRound();
           }
-          
+
           // At halfway through the interval, play halfway.mp3.
           if (newTime === Math.floor(workout.intervalTime / 2)) {
             playHalfway();
@@ -316,7 +320,6 @@ export default function EmomSession() {
   const handleComplete = () => {
     setIsRunning(false);
     setIsPaused(true);
-    // Cancel any pending speech (if any)
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
