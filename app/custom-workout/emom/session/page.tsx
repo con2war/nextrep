@@ -175,13 +175,12 @@ export default function EmomSession() {
 
   const playBeep = useCallback(() => {
     if (beepAudio) {
-      const beepClone = beepAudio.cloneNode() as HTMLAudioElement;
-      beepClone.play().catch((error) =>
+      beepAudio.currentTime = 0;
+      beepAudio.play().catch((error) =>
         console.error("Error playing beep.mp3:", error)
       );
     }
   }, [beepAudio]);
-  
 
   // Load and normalize the EMOM workout from localStorage.
   useEffect(() => {
