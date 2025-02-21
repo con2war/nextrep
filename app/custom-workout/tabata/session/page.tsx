@@ -301,7 +301,7 @@ export default function TabataSession() {
 
           // Play beep at exactly 3 seconds remaining
           if (newTime === 3) {
-            requestAnimationFrame(() => playBeep()); // Use requestAnimationFrame for more precise timing
+            playBeep();
           }
 
           if (newTime <= 0) {

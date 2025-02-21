@@ -130,8 +130,6 @@ export default function EmomSession() {
     };
   }, []);
 
-  // --- Load MP3 vocal cues ---
-  // (These remain for the other cues, if needed)
   const [letsGoAudio, setLetsGoAudio] = useState<HTMLAudioElement | null>(null);
   const [halfwayAudio, setHalfwayAudio] = useState<HTMLAudioElement | null>(null);
   const [tenSecondsAudio, setTenSecondsAudio] = useState<HTMLAudioElement | null>(null);
@@ -162,6 +160,15 @@ export default function EmomSession() {
     bp.volume = 1.0;
     bp.preload = "auto";
     setBeepAudio(bp);
+
+    // Cleanup
+    return () => {
+      lg.pause();
+      hw.pause();
+      ts.pause();
+      lr.pause();
+      bp.pause();
+    };
   }, []);
 
   // MP3 playback helper functions.
@@ -202,13 +209,14 @@ export default function EmomSession() {
   }, [lastRoundAudio]);
 
   const playBeep = useCallback(() => {
-    if (!beepAudio) return;
-    beepAudio.currentTime = 0;
-    beepAudio.play().catch(error => {
-      console.error("Error playing beep:", error);
-    });
+    if (beepAudio) {
+      beepAudio.currentTime = 0;
+      beepAudio.play().catch((error) =>
+        console.error("Error playing beep.mp3:", error)
+      );
+    }
   }, [beepAudio]);
-  
+
   // Load and normalize the EMOM workout from localStorage.
   useEffect(() => {
     const savedWorkout = localStorage.getItem("currentEmomWorkout");
