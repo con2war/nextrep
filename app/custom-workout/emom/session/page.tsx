@@ -99,15 +99,35 @@ export default function EmomSession() {
 
   // Initialize beep sound on mount.
   useEffect(() => {
-    const audio = new Audio("/beep.mp3");
-    audio.volume = 0.5;
-    audio.preload = "auto";
-    try {
-      audio.load();
-      setBeepAudio(audio);
-    } catch (error) {
-      console.error("Error loading audio:", error);
-    }
+    // Create a new Audio instance for beep
+    const bp = new Audio("/beep.mp3");
+    bp.volume = 1.0;
+    bp.preload = "auto";
+
+    // iOS-specific setup for beep sound
+    const setupBeep = async () => {
+      try {
+        await bp.load();
+        // Create a touch event listener specifically for beep audio
+        document.addEventListener('touchstart', () => {
+          bp.play().then(() => {
+            bp.pause();
+            bp.currentTime = 0;
+          }).catch(e => console.error("Beep setup failed:", e));
+        }, { once: true });
+      } catch (error) {
+        console.error("Beep setup failed:", error);
+      }
+    };
+
+    setupBeep();
+    setBeepAudio(bp);
+
+    // Cleanup
+    return () => {
+      bp.pause();
+      bp.src = "";
+    };
   }, []);
 
   // --- Load MP3 vocal cues ---
@@ -182,12 +202,15 @@ export default function EmomSession() {
   }, [lastRoundAudio]);
 
   const playBeep = useCallback(() => {
-    if (beepAudio) {
-      beepAudio.currentTime = 0;
-      beepAudio.play().catch((error) =>
-        console.error("Error playing beep.mp3:", error)
-      );
-    }
+    if (!beepAudio) return;
+
+    // Create a new Audio instance each time
+    const newBeep = new Audio("/beep.mp3");
+    newBeep.volume = 1.0;
+    
+    newBeep.play().catch(error => {
+      console.error("Error playing beep:", error);
+    });
   }, [beepAudio]);
 
   // Load and normalize the EMOM workout from localStorage.
