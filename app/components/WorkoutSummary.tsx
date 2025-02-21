@@ -256,7 +256,7 @@ export default function WorkoutSummary({
                               {" "}
                               •{" "}
                               {exercise.metric === "reps" && exercise.reps !== undefined
-                                ? `${exercise.reps} reps`
+                                ? `${exercise.reps}`
                                 : exercise.metric === "distance" &&
                                   exercise.distance !== undefined
                                 ? `${exercise.distance}m`
