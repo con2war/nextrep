@@ -68,7 +68,7 @@ export default function EmomSession() {
   const [showCountdown, setShowCountdown] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [completedAt, setCompletedAt] = useState<Date | null>(null);
-  const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null);
+  const [beepAudio, setBeepAudio] = useState<HTMLAudioElement | null>(null);
 
   // --- Keep screen awake using Wake Lock API ---
   useEffect(() => {
@@ -104,7 +104,7 @@ export default function EmomSession() {
     audio.preload = "auto";
     try {
       audio.load();
-      setBeepSound(audio);
+      setBeepAudio(audio);
     } catch (error) {
       console.error("Error loading audio:", error);
     }
@@ -137,6 +137,11 @@ export default function EmomSession() {
     lr.volume = 1.0;
     lr.preload = "auto";
     setLastRoundAudio(lr);
+
+    const bp = new Audio("/beep.mp3");
+    bp.volume = 1.0;
+    bp.preload = "auto";
+    setBeepAudio(bp);
   }, []);
 
   // MP3 playback helper functions.
@@ -175,6 +180,15 @@ export default function EmomSession() {
       );
     }
   }, [lastRoundAudio]);
+
+  const playBeep = useCallback(() => {
+    if (beepAudio) {
+      beepAudio.currentTime = 0;
+      beepAudio.play().catch((error) =>
+        console.error("Error playing beep.mp3:", error)
+      );
+    }
+  }, [beepAudio]);
 
   // Load and normalize the EMOM workout from localStorage.
   useEffect(() => {
@@ -217,15 +231,9 @@ export default function EmomSession() {
           if (newTime === 10) {
             playTenSeconds();
           }
-          // (Beep) When 3 seconds remain, play beep.mp3.
-          if (newTime === 3 && beepSound) {
-            beepSound.currentTime = 0;
-            beepSound.play().catch((error) => {
-              console.error("Error playing beep.mp3:", error);
-              setTimeout(() => {
-                beepSound.play().catch((e) => console.error("Retry error:", e));
-              }, 100);
-            });
+          // When 3 seconds remain, play beep.mp3.
+          if (newTime === 3) {
+            playBeep();
           }
 
           if (newTime <= 0) {
@@ -252,7 +260,7 @@ export default function EmomSession() {
     playHalfway,
     playTenSeconds,
     playLastRound,
-    beepSound,
+    playBeep,
   ]);
 
   // Start/resume/pause the workout.

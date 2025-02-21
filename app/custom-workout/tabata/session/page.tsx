@@ -52,6 +52,7 @@ export default function TabataSession() {
   const [beepSound, setBeepSound] = useState<HTMLAudioElement | null>(null);
   // This flag ensures that the halfway cue is only played once per interval.
   const [hasSpokenHalfway, setHasSpokenHalfway] = useState(false);
+  const [beepAudio, setBeepAudio] = useState<HTMLAudioElement | null>(null);
 
   // --- Keep screen awake using Wake Lock API ---
   useEffect(() => {
@@ -149,6 +150,11 @@ export default function TabataSession() {
     lr.volume = 1.0;
     lr.preload = "auto";
     setLastRoundAudio(lr);
+
+    const bp = new Audio("/beep.mp3");
+    bp.volume = 1.0;
+    bp.preload = "auto";
+    setBeepAudio(bp);
   }, []);
 
   // MP3 playback helper functions.
@@ -197,6 +203,15 @@ export default function TabataSession() {
     }
   }, [lastRoundAudio]);
 
+  const playBeep = useCallback(() => {
+    if (beepAudio) {
+      beepAudio.currentTime = 0;
+      beepAudio.play().catch((error) =>
+        console.error("Error playing beep.mp3:", error)
+      );
+    }
+  }, [beepAudio]);
+
   // Timer effect: alternate work and rest intervals.
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -207,50 +222,47 @@ export default function TabataSession() {
           const currentIntervalDuration = isWorkInterval
             ? workout.workTime
             : workout.restTime;
-          // At halfway point, play halfway.mp3 (only once per interval).
+          const totalRounds = workout.rounds * workout.exercises.length;
+          
+          // Last round announcement
+          if (currentRound === totalRounds - 1 && isWorkInterval && prevTime === workout.workTime) {
+            playLastRound();
+          }
+
+          // Halfway point
           if (!hasSpokenHalfway && newTime === Math.floor(currentIntervalDuration / 2)) {
             playHalfway();
             setHasSpokenHalfway(true);
           }
-          // At 3 seconds remaining, play beep.mp3.
-          if (newTime === 3 && beepSound) {
-            beepSound.currentTime = 0;
-            beepSound.play().catch((error) => {
-              console.error("Error playing beep.mp3:", error);
-              setTimeout(() => {
-                beepSound.play().catch((e) => console.error("Retry error:", e));
-              }, 100);
-            });
+
+          // Play beep at 3 seconds remaining
+          if (newTime === 3) {
+            playBeep();
           }
+
           if (newTime <= 0) {
-            const totalRounds = workout.rounds * workout.exercises.length;
-            
-            // Check if we're about to start the final round
-            if (currentRound === totalRounds - 1 && !isWorkInterval) {
-              playLastRound();
-            }
-            
-            if (currentRound >= totalRounds) {
-              handleComplete();
-              return 0;
-            }
-            
-            // Reset halfway flag for next interval
-            setHasSpokenHalfway(false);
-            // Switch intervals
             if (isWorkInterval) {
-              // When a work interval ends, play the rest cue
-              playRest();
               setIsWorkInterval(false);
+              playRest();
+              setHasSpokenHalfway(false);
               return workout.restTime;
             } else {
-              // When a rest interval ends, move to next exercise
-              const nextIndex = (currentExerciseIndex + 1) % workout.exercises.length;
-              setCurrentExerciseIndex(nextIndex);
-              playWork();
-              setIsWorkInterval(true);
-              setCurrentRound((prev) => prev + 1);
-              return workout.workTime;
+              if (currentExerciseIndex < workout.exercises.length - 1) {
+                setCurrentExerciseIndex(prev => prev + 1);
+              } else {
+                setCurrentExerciseIndex(0);
+                setCurrentRound(prev => prev + 1);
+              }
+              
+              if (currentRound < totalRounds) {
+                setIsWorkInterval(true);
+                playWork();
+                setHasSpokenHalfway(false);
+                return workout.workTime;
+              } else {
+                handleComplete();
+                return 0;
+              }
             }
           }
           return newTime;
@@ -264,12 +276,13 @@ export default function TabataSession() {
     workout,
     currentRound,
     currentExerciseIndex,
+    isWorkInterval,
     hasSpokenHalfway,
-    playHalfway,
-    playRest,
     playWork,
+    playRest,
+    playHalfway,
     playLastRound,
-    beepSound,
+    playBeep,
   ]);
 
   // Announce the first exercise and round on mount.
