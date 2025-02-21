@@ -11,7 +11,9 @@ import WorkoutSummary from "@/app/components/WorkoutSummary";
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  return `${mins.toString().padStart(2, "0")}:${secs
+    .toString()
+    .padStart(2, "0")}`;
 };
 
 interface Exercise {
@@ -30,7 +32,7 @@ interface EmomWorkout {
   intervalTime: number;
   intervalUnit: "seconds" | "minutes";
   roundsPerMovement: number;
-  exercises: Exercise[]; // Could be saved as a JSON string.
+  exercises: Exercise[];
   difficulty?: string;
   targetMuscles?: string[];
 }
@@ -94,50 +96,33 @@ export default function EmomSession() {
     };
   }, []);
 
-  // Audio states for other sounds.
-  const [letsGoAudio, setLetsGoAudio] = useState<HTMLAudioElement | null>(null);
-  const [halfwayAudio, setHalfwayAudio] = useState<HTMLAudioElement | null>(null);
-  const [tenSecondsAudio, setTenSecondsAudio] = useState<HTMLAudioElement | null>(null);
-  const [lastRoundAudio, setLastRoundAudio] = useState<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    const lg = new Audio("/letsgo.mp3");
-    lg.volume = 1.0;
-    lg.preload = "auto";
-    setLetsGoAudio(lg);
-
-    const hw = new Audio("/halfway.mp3");
-    hw.volume = 1.0;
-    hw.preload = "auto";
-    setHalfwayAudio(hw);
-
-    const ts = new Audio("/10s.mp3");
-    ts.volume = 1.0;
-    ts.preload = "auto";
-    setTenSecondsAudio(ts);
-
-    const lr = new Audio("/lastround.mp3");
-    lr.volume = 1.0;
-    lr.preload = "auto";
-    setLastRoundAudio(lr);
-
-    // Cleanup on unmount.
-    return () => {
-      lg.pause();
-      hw.pause();
-      ts.pause();
-      lr.pause();
-    };
-  }, []);
-
-  // Web Audio API: AudioContext and beep buffer.
+  // Web Audio API states for all sounds.
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [beepBuffer, setBeepBuffer] = useState<AudioBuffer | null>(null);
+  const [halfwayBuffer, setHalfwayBuffer] = useState<AudioBuffer | null>(null);
+  const [tenSecondsBuffer, setTenSecondsBuffer] = useState<AudioBuffer | null>(
+    null
+  );
+  const [letsgoBuffer, setLetsgoBuffer] = useState<AudioBuffer | null>(null);
+  const [lastRoundBuffer, setLastRoundBuffer] = useState<AudioBuffer | null>(
+    null
+  );
 
-  // Initialize or resume the AudioContext and load beep.mp3.
+  // Helper to load an AudioBuffer from a URL.
+  const loadAudioBuffer = async (
+    ctx: AudioContext,
+    url: string
+  ): Promise<AudioBuffer> => {
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    return await ctx.decodeAudioData(arrayBuffer);
+  };
+
+  // Initialize or resume the AudioContext and load our audio buffers.
   const initAudioContext = useCallback(async () => {
     if (!audioContext) {
-      const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+      const AudioContextClass =
+        window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContextClass) {
         console.error("Web Audio API is not supported in this browser");
         return;
@@ -145,56 +130,28 @@ export default function EmomSession() {
       const ctx = new AudioContextClass();
       setAudioContext(ctx);
       try {
-        const response = await fetch("/beep.mp3");
-        const arrayBuffer = await response.arrayBuffer();
-        const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
-        setBeepBuffer(decodedBuffer);
+        const [beep, halfway, tenSeconds, letsgo, lastRound] =
+          await Promise.all([
+            loadAudioBuffer(ctx, "/beep.mp3"),
+            loadAudioBuffer(ctx, "/halfway.mp3"),
+            loadAudioBuffer(ctx, "/10s.mp3"),
+            loadAudioBuffer(ctx, "/letsgo.mp3"),
+            loadAudioBuffer(ctx, "/lastround.mp3"),
+          ]);
+        setBeepBuffer(beep);
+        setHalfwayBuffer(halfway);
+        setTenSecondsBuffer(tenSeconds);
+        setLetsgoBuffer(letsgo);
+        setLastRoundBuffer(lastRound);
       } catch (error) {
-        console.error("Error loading beep audio:", error);
+        console.error("Error loading audio buffers:", error);
       }
     } else if (audioContext.state === "suspended") {
       await audioContext.resume();
     }
   }, [audioContext]);
 
-  // MP3 playback helper functions for other audios.
-  const playLetsGo = useCallback(() => {
-    if (letsGoAudio) {
-      letsGoAudio.currentTime = 0;
-      letsGoAudio.play().catch((error) =>
-        console.error("Error playing letsgo.mp3:", error)
-      );
-    }
-  }, [letsGoAudio]);
-
-  const playHalfway = useCallback(() => {
-    if (halfwayAudio) {
-      halfwayAudio.currentTime = 0;
-      halfwayAudio.play().catch((error) =>
-        console.error("Error playing halfway.mp3:", error)
-      );
-    }
-  }, [halfwayAudio]);
-
-  const playTenSeconds = useCallback(() => {
-    if (tenSecondsAudio) {
-      tenSecondsAudio.currentTime = 0;
-      tenSecondsAudio.play().catch((error) =>
-        console.error("Error playing 10s.mp3:", error)
-      );
-    }
-  }, [tenSecondsAudio]);
-
-  const playLastRound = useCallback(() => {
-    if (lastRoundAudio) {
-      lastRoundAudio.currentTime = 0;
-      lastRoundAudio.play().catch((error) =>
-        console.error("Error playing lastround.mp3:", error)
-      );
-    }
-  }, [lastRoundAudio]);
-
-  // Updated playBeep function using the Web Audio API.
+  // Playback helpers using the Web Audio API.
   const playBeep = useCallback(() => {
     if (audioContext && beepBuffer) {
       const source = audioContext.createBufferSource();
@@ -205,6 +162,50 @@ export default function EmomSession() {
       console.error("Audio context or beep buffer not ready");
     }
   }, [audioContext, beepBuffer]);
+
+  const playHalfway = useCallback(() => {
+    if (audioContext && halfwayBuffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = halfwayBuffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    } else {
+      console.error("Audio context or halfway buffer not ready");
+    }
+  }, [audioContext, halfwayBuffer]);
+
+  const playTenSeconds = useCallback(() => {
+    if (audioContext && tenSecondsBuffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = tenSecondsBuffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    } else {
+      console.error("Audio context or ten seconds buffer not ready");
+    }
+  }, [audioContext, tenSecondsBuffer]);
+
+  const playLetsgo = useCallback(() => {
+    if (audioContext && letsgoBuffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = letsgoBuffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    } else {
+      console.error("Audio context or letsgo buffer not ready");
+    }
+  }, [audioContext, letsgoBuffer]);
+
+  const playLastRound = useCallback(() => {
+    if (audioContext && lastRoundBuffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = lastRoundBuffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    } else {
+      console.error("Audio context or last round buffer not ready");
+    }
+  }, [audioContext, lastRoundBuffer]);
 
   // Load and normalize the EMOM workout from localStorage.
   useEffect(() => {
@@ -232,21 +233,22 @@ export default function EmomSession() {
       timer = setInterval(() => {
         setTimeRemaining((prev) => {
           const newTime = prev - 1;
-          const totalRounds = workout.roundsPerMovement * workout.exercises.length;
+          const totalRounds =
+            workout.roundsPerMovement * workout.exercises.length;
 
           // Play last round audio at the start of the last round.
           if (currentRound === totalRounds && prev === workout.intervalTime) {
             playLastRound();
           }
-          // At halfway through the interval, play halfway.mp3.
+          // At halfway through the interval, play halfway.mp3 via Web Audio API.
           if (newTime === Math.floor(workout.intervalTime / 2)) {
             playHalfway();
           }
-          // When 10 seconds remain, play 10s.mp3.
+          // When 10 seconds remain, play 10s.mp3 via Web Audio API.
           if (newTime === 10) {
             playTenSeconds();
           }
-          // When 3 seconds remain, play beep.mp3.
+          // When 3 seconds remain, play beep.mp3 via Web Audio API.
           if (newTime === 3) {
             playBeep();
           }
@@ -256,7 +258,8 @@ export default function EmomSession() {
               return 0;
             } else {
               setCurrentRound(currentRound + 1);
-              const nextIdx = (currentExercise + 1) % workout.exercises.length;
+              const nextIdx =
+                (currentExercise + 1) % workout.exercises.length;
               setCurrentExercise(nextIdx);
               return workout.intervalTime;
             }
@@ -280,7 +283,7 @@ export default function EmomSession() {
   // Start/resume/pause the workout.
   // Also initialize/resume the AudioContext to ensure it’s unlocked for iOS.
   const startOrToggleWorkout = useCallback(() => {
-    initAudioContext(); // Ensure AudioContext is active.
+    initAudioContext();
     if (!isRunning && !isPaused) {
       setShowCountdown(true);
     } else if (isPaused) {
@@ -292,7 +295,7 @@ export default function EmomSession() {
     }
   }, [isRunning, isPaused, initAudioContext]);
 
-  // Update the countdown handling in EmomSession.
+  // Update the countdown handling.
   const handleCountdownStart = useCallback(() => {
     requestAnimationFrame(() => {
       setIsRunning(false);
@@ -305,9 +308,9 @@ export default function EmomSession() {
       setShowCountdown(false);
       setIsRunning(true);
       setIsPaused(false);
-      playLetsGo();
+      playLetsgo();
     });
-  }, [playLetsGo]);
+  }, [playLetsgo]);
 
   // End workout: stop timer, record completion, show summary.
   const handleComplete = () => {
