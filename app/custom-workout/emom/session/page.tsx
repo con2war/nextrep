@@ -175,7 +175,6 @@ export default function EmomSession() {
 
   const playBeep = useCallback(() => {
     if (beepAudio) {
-      // Reuse the preloaded beepAudio instance
       beepAudio.currentTime = 0;
       beepAudio.play().catch((error) =>
         console.error("Error playing beep.mp3:", error)
@@ -212,7 +211,7 @@ export default function EmomSession() {
           const totalRounds = workout.roundsPerMovement * workout.exercises.length;
 
           // Play last round audio at the start of the last round
-          if (currentRound === totalRounds - 1 && prev === workout.intervalTime) {
+          if (currentRound === totalRounds && prev === workout.intervalTime) {
             playLastRound();
           }
 
@@ -257,7 +256,7 @@ export default function EmomSession() {
   ]);
 
   // Start/resume/pause the workout.
-  const startOrToggleWorkout = () => {
+  const startOrToggleWorkout = useCallback(() => {
     if (!isRunning && !isPaused) {
       setShowCountdown(true);
     } else if (isPaused) {
@@ -267,20 +266,25 @@ export default function EmomSession() {
       setIsRunning(false);
       setIsPaused(true);
     }
-  };
+  }, [isRunning, isPaused]);
 
   // Update the countdown handling in EmomSession
   const handleCountdownStart = useCallback(() => {
-    setIsRunning(false);
-    setIsPaused(false);
+    // Move state updates to an effect
+    requestAnimationFrame(() => {
+      setIsRunning(false);
+      setIsPaused(false);
+    });
   }, []);
 
   const handleCountdownComplete = useCallback(() => {
-    setShowCountdown(false);
-    setIsRunning(true);
-    setIsPaused(false);
-    // Play letsgo.mp3 once at the very start
-    playLetsGo();
+    // Move state updates to an effect
+    requestAnimationFrame(() => {
+      setShowCountdown(false);
+      setIsRunning(true);
+      setIsPaused(false);
+      playLetsGo();
+    });
   }, [playLetsGo]);
 
   // End workout: stop timer, record completion, show summary.
