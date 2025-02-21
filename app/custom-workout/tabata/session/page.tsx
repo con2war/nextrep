@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Play, Pause, XCircle, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -41,6 +41,10 @@ export default function TabataSession() {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [currentRound, setCurrentRound] = useState(1);
+  const currentRoundRef = useRef(currentRound);
+  useEffect(() => {
+    currentRoundRef.current = currentRound;
+  }, [currentRound]);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [isWorkInterval, setIsWorkInterval] = useState(true);
@@ -231,22 +235,22 @@ export default function TabataSession() {
           const newTime = prevTime - 1;
           const totalRounds = workout.rounds * workout.exercises.length;
           
-          // Announce last round (if in work interval at the start of the interval)
-          if (currentRound === totalRounds - 1 && isWorkInterval && prevTime === workout.workTime) {
+          // Announce last round (if in work interval at the start)
+          if (currentRoundRef.current === totalRounds - 1 && isWorkInterval && prevTime === workout.workTime) {
             playLastRound();
           }
-
+          
           // Halfway cue (only once per interval)
           if (!hasSpokenHalfway && newTime === Math.floor(currentIntervalDuration / 2)) {
             playHalfway();
             setHasSpokenHalfway(true);
           }
-
+          
           // Beep cue at exactly 3 seconds remaining.
           if (newTime === 3) {
             playBeep();
           }
-
+          
           if (newTime <= 0) {
             if (isWorkInterval) {
               setIsWorkInterval(false);
@@ -254,13 +258,20 @@ export default function TabataSession() {
               setHasSpokenHalfway(false);
               return workout.restTime;
             } else {
+              // In rest interval, update exercise and possibly round.
+              let newExerciseIndex = currentExerciseIndex;
+              let newRound = currentRoundRef.current;
               if (currentExerciseIndex < workout.exercises.length - 1) {
-                setCurrentExerciseIndex((prev) => prev + 1);
+                newExerciseIndex = currentExerciseIndex + 1;
               } else {
-                setCurrentExerciseIndex(0);
-                setCurrentRound((prev) => prev + 1);
+                newExerciseIndex = 0;
+                newRound = currentRoundRef.current + 1;
+                setCurrentRound(newRound);
+                currentRoundRef.current = newRound;
               }
-              if (currentRound < totalRounds) {
+              setCurrentExerciseIndex(newExerciseIndex);
+              
+              if (newRound < totalRounds) {
                 setIsWorkInterval(true);
                 playWork();
                 setHasSpokenHalfway(false);
@@ -280,7 +291,6 @@ export default function TabataSession() {
     isRunning,
     isPaused,
     workout,
-    currentRound,
     currentExerciseIndex,
     isWorkInterval,
     hasSpokenHalfway,
