@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Your other global styles */
+
 @layer base {
   :root {
     --background: 0 0% 100%;

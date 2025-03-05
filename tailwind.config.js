@@ -2,12 +2,19 @@
 module.exports = {
   darkMode: ["class"],
   content: [
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/**/*.{ts,tsx}",
     "./*.{ts,tsx}",
     "*.{js,ts,jsx,tsx,mdx}",
+  ],
+  safelist: [
+    // Add any classes that might be dynamically generated
+    // For example:
+    'bg-red-500',
+    'text-blue-400',
+    /^bg-/,  // This will preserve all bg-* classes
   ],
   theme: {
     container: {
@@ -74,6 +81,6 @@ module.exports = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [],
 }
 

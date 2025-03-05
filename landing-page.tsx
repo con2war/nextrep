@@ -171,7 +171,6 @@ export default function LandingPage() {
       <footer className="py-6 border-t bg-gray-200">
         <div className="container px-4 md:px-6 flex flex-col md:flex-row items-center justify-between">
           <div className="flex items-center gap-2">
-            <Dumbbell className="h-5 w-5 text-blue-600" />
             <p className="text-sm text-gray-700">© {new Date().getFullYear()} NextRep AI. All rights reserved.</p>
           </div>
           <nav className="mt-4 md:mt-0 flex space-x-4">
