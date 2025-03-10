@@ -8,6 +8,8 @@ import { Dumbbell } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import Image from "next/image"
+import { toast as hotToast } from 'react-hot-toast'
+import Link from "next/link"
 
 export default function LandingPage() {
   const [email, setEmail] = useState("")
@@ -17,15 +19,22 @@ export default function LandingPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
-      toast({
-        title: "Thanks for joining!",
-        description: "We'll notify you when NextRep AI is ready.",
+    try {
+      const response = await fetch('/api/submit-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       })
+
+      if (!response.ok) throw new Error('Submission failed')
+
+      hotToast.success('Thank you! We will be in touch soon.')
       setEmail("")
+    } catch (error) {
+      hotToast.error('Something went wrong. Please try again.')
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   const fadeInUp = {
@@ -174,9 +183,9 @@ export default function LandingPage() {
             <p className="text-sm text-gray-700">© {new Date().getFullYear()} NextRep AI. All rights reserved.</p>
           </div>
           <nav className="mt-4 md:mt-0 flex space-x-4">
-            <a href="#" className="text-sm text-gray-700 hover:underline">Terms</a>
-            <a href="#" className="text-sm text-gray-700 hover:underline">Privacy</a>
-            <a href="#" className="text-sm text-gray-700 hover:underline">Support</a>
+            <Link href="/terms" className="text-sm text-gray-700 hover:underline">Terms</Link>
+            <Link href="/privacy" className="text-sm text-gray-700 hover:underline">Privacy</Link>
+            <Link href="/support" className="text-sm text-gray-700 hover:underline">Support</Link>
           </nav>
         </div>
       </footer>
