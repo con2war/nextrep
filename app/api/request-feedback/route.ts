@@ -9,7 +9,7 @@ export async function POST(request: Request) {
 
     // Send email to admin (your Gmail)
     const { data, error } = await resend.emails.send({
-      from: 'NextRep AI <conorward00@gmail.com>', // Update with your domain
+      from: 'onboarding@resend.dev',
       to: process.env.SUPPORT_EMAIL || 'support@nextrepai.com',
       subject: `Support Request from ${name}`,
       html: `
